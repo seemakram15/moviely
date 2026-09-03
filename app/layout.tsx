@@ -91,6 +91,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Navbar />
         <main>{children}</main>
         <footer className="mt-24 border-t border-white/5 bg-black">
+          {/* Developer signature — prominent, top of the footer */}
+          <div className="border-b border-white/5 bg-gradient-to-r from-red-500/[0.06] via-transparent to-orange-500/[0.06]">
+            <div className="mx-auto flex max-w-[1600px] flex-col items-center gap-2 px-4 py-8 text-center sm:px-8 sm:py-10">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-neutral-500">
+                Crafted with ♥ by
+              </p>
+              <p className="text-3xl font-black tracking-tight sm:text-4xl">
+                <span className="bg-gradient-to-r from-red-400 via-orange-400 to-red-400 bg-clip-text text-transparent">
+                  Waseem Akram
+                </span>
+              </p>
+              <p className="max-w-md text-xs text-neutral-500 sm:text-sm">
+                Full-stack developer · Building beautiful, fast, and functional web experiences
+              </p>
+            </div>
+          </div>
+
           <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-8 sm:py-12">
             <div className="grid gap-6 sm:grid-cols-2 sm:gap-8 md:grid-cols-4">
               <div className="sm:col-span-2 md:col-span-1">
