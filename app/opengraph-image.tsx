@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 // Generates the social preview at 1200×630 on the fly. Next.js picks it up
 // as the site's OG image via the App Router's built-in convention.
-export const runtime = "edge";
+// Runs on the default Node.js runtime (Edge runtime is deprecated in Next 16).
 export const alt = "Moviely — Watch Movies & TV Shows";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
