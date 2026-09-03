@@ -14,10 +14,59 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = "https://moviely.qzz.io";
+const SITE_NAME = "Moviely";
+const DESCRIPTION =
+  "Watch trending movies and TV shows — Bollywood, Hollywood, K-Drama, Anime, Turkish, and more. Built by Waseem Akram.";
+
 export const metadata: Metadata = {
-  title: "Moviely — Watch Movies & TV Shows",
-  description:
-    "Stream trending movies and TV shows. Powered by TMDB and free embed players.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Moviely — Watch Movies & TV Shows",
+    template: "%s · Moviely",
+  },
+  description: DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: "Waseem Akram" }],
+  creator: "Waseem Akram",
+  publisher: "Waseem Akram",
+  keywords: [
+    "movies",
+    "tv shows",
+    "streaming",
+    "Bollywood",
+    "Hollywood",
+    "K-Drama",
+    "Korean drama",
+    "Anime",
+    "Lollywood",
+    "Punjabi movies",
+    "Turkish series",
+    "watch online",
+    "free movies",
+    "Moviely",
+  ],
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: "Moviely — Watch Movies & TV Shows",
+    description: DESCRIPTION,
+    url: SITE_URL,
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Moviely — Watch Movies & TV Shows",
+    description: DESCRIPTION,
+    creator: "@waseemakram",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: SITE_URL,
+  },
 };
 
 export const viewport: Viewport = {
@@ -105,12 +154,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 </ul>
               </div>
             </div>
-            <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-6 text-xs text-neutral-500 sm:flex-row">
-              <p>
+            <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-white/5 pt-6 sm:flex-row">
+              <p className="max-w-lg text-center text-xs text-neutral-500 sm:text-left">
                 Data provided by{" "}
                 <a href="https://www.themoviedb.org/" className="underline hover:text-neutral-300">TMDB</a>. This product uses the TMDB API but is not endorsed or certified by TMDB.
               </p>
-              <p>© {new Date().getFullYear()} Moviely.</p>
+              <div className="flex flex-col items-center gap-1 text-center sm:items-end sm:text-right">
+                <p className="text-[11px] uppercase tracking-widest text-neutral-500">
+                  Designed & Built by
+                </p>
+                <p className="text-base font-black tracking-tight text-white">
+                  <span className="bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">
+                    Waseem Akram
+                  </span>
+                </p>
+                <p className="text-[11px] text-neutral-600">© {new Date().getFullYear()} Moviely</p>
+              </div>
             </div>
           </div>
         </footer>

@@ -70,7 +70,12 @@ export default function Navbar() {
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-red-500 to-orange-500 text-lg font-black text-white shadow-lg shadow-red-500/30">
               M
             </span>
-            <span className="text-lg font-black tracking-tight text-white">Moviely</span>
+            <span className="flex flex-col leading-tight">
+              <span className="text-lg font-black tracking-tight text-white">Moviely</span>
+              <span className="hidden text-[9px] font-medium uppercase tracking-wider text-neutral-500 sm:block">
+                by Waseem Akram
+              </span>
+            </span>
           </Link>
 
           {/* Desktop nav */}
