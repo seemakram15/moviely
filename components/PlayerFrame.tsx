@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SOURCES } from "@/lib/players";
 
 type Props = {
@@ -56,11 +56,31 @@ export default function PlayerFrame({ tmdbId, kind, season, episode }: Props) {
   }, [sourceId, tmdbId, kind, season, episode, preferHindi]);
 
   const activeSource = SOURCES.find((s) => s.id === sourceId) ?? SOURCES[0];
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const goFullscreen = () => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    // Vendor prefixes cover Safari — the fullscreen API isn't standardised
+    // enough to skip these.
+    type FSElement = HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void>;
+      msRequestFullscreen?: () => Promise<void>;
+    };
+    const e = el as FSElement;
+    const req = e.requestFullscreen ?? e.webkitRequestFullscreen ?? e.msRequestFullscreen;
+    req?.call(e).catch(() => {});
+  };
 
   return (
     <div className="w-full">
-      {/* Player */}
-      <div className="group/player relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-2xl shadow-black/60 ring-1 ring-white/10 transition hover:ring-white/20">
+      {/* Player wrapper — aspect-video on desktop, min-height on mobile so
+          the embed's built-in settings popup has room to breathe (we can't
+          restyle inside a cross-origin iframe). */}
+      <div
+        ref={wrapperRef}
+        className="group/player relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-black shadow-2xl shadow-black/60 ring-1 ring-white/10 transition hover:ring-white/20 sm:aspect-video"
+      >
         {loading && (
           <div className="absolute inset-0 z-10 grid place-items-center bg-neutral-950">
             <div className="flex flex-col items-center gap-3">
@@ -80,6 +100,18 @@ export default function PlayerFrame({ tmdbId, kind, season, episode }: Props) {
           onLoad={() => setLoading(false)}
           className="absolute inset-0 h-full w-full"
         />
+        {/* Mobile-only fullscreen button — sits above the iframe so it always
+            works, even when the embedded UI is covering the whole video. */}
+        <button
+          type="button"
+          onClick={goFullscreen}
+          aria-label="Enter fullscreen"
+          className="absolute right-2 top-2 z-20 grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-black/60 text-white backdrop-blur transition hover:border-white/50 hover:bg-black/80 sm:hidden"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+            <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
 
       {/* Controls */}
@@ -185,10 +217,10 @@ export default function PlayerFrame({ tmdbId, kind, season, episode }: Props) {
             })}
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
-            🟢 = ad-free · 🇮🇳 = supports Hindi audio when the source has it. Each player has
-            built-in <strong className="text-neutral-400">speed, volume, quality &amp; PIP</strong> controls
-            (open the video controls once it loads). For a fully ad-free experience anywhere,
-            install{" "}
+            🟢 = ad-free · 🇮🇳 = Hindi audio when source has it · Built-in
+            <strong className="text-neutral-400"> speed, volume, quality &amp; PIP </strong>
+            in every player. On mobile, tap <span className="rounded bg-white/10 px-1 text-neutral-300">⛶</span> to go fullscreen for a better popup layout. For
+            ad-free anywhere, install{" "}
             <a
               href="https://ublockorigin.com/"
               target="_blank"
