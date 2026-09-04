@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import PlayerFrame from "@/components/PlayerFrame";
 import BackButton from "@/components/BackButton";
 import DetailHero from "@/components/DetailHero";
-import { getMovieDetails } from "@/lib/tmdb";
+import { getMovieDetails, IMG } from "@/lib/tmdb";
 
 export const revalidate = 3600;
 
@@ -49,7 +49,11 @@ export default async function MoviePage(props: PageProps<"/movie/[id]">) {
             <p className="text-sm text-neutral-400">Streaming {movie.title}</p>
           </div>
         </div>
-        <PlayerFrame tmdbId={tmdbId} kind="movie" />
+        <PlayerFrame
+          tmdbId={tmdbId}
+          kind="movie"
+          poster={movie.backdrop_path ? `${IMG}/w780${movie.backdrop_path}` : undefined}
+        />
       </section>
     </div>
   );
