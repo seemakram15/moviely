@@ -343,7 +343,7 @@ export async function searchMulti(query: string): Promise<MediaItem[]> {
 
 export function posterUrl(
   path: string | null,
-  size: "w200" | "w342" | "w500" | "original" = "w500"
+  size: "w200" | "w342" | "w500" | "w780" | "original" = "w500"
 ): string {
   return path ? `${IMG}/${size}${path}` : "";
 }
