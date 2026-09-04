@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SOURCES } from "@/lib/players";
 
 type Props = {
@@ -56,30 +56,35 @@ export default function PlayerFrame({ tmdbId, kind, season, episode }: Props) {
   }, [sourceId, tmdbId, kind, season, episode, preferHindi]);
 
   const activeSource = SOURCES.find((s) => s.id === sourceId) ?? SOURCES[0];
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
 
-  const goFullscreen = () => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    // Vendor prefixes cover Safari — the fullscreen API isn't standardised
-    // enough to skip these.
-    type FSElement = HTMLElement & {
-      webkitRequestFullscreen?: () => Promise<void>;
-      msRequestFullscreen?: () => Promise<void>;
+  // Lock body scroll + hide navbar while pseudo-fullscreen is active.
+  useEffect(() => {
+    if (!expanded) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
     };
-    const e = el as FSElement;
-    const req = e.requestFullscreen ?? e.webkitRequestFullscreen ?? e.msRequestFullscreen;
-    req?.call(e).catch(() => {});
-  };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [expanded]);
 
   return (
     <div className="w-full">
-      {/* Player wrapper — aspect-video on desktop, min-height on mobile so
-          the embed's built-in settings popup has room to breathe (we can't
-          restyle inside a cross-origin iframe). */}
+      {/* Player wrapper — CSS-based pseudo-fullscreen when expanded (works
+          on every browser including iOS Safari, unlike the native Fullscreen
+          API which refuses cross-origin iframes on iOS). */}
       <div
-        ref={wrapperRef}
-        className="group/player relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-black shadow-2xl shadow-black/60 ring-1 ring-white/10 transition hover:ring-white/20 sm:aspect-video"
+        className={
+          expanded
+            ? "fixed inset-0 z-[100] bg-black"
+            : "group/player relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-black shadow-2xl shadow-black/60 ring-1 ring-white/10 transition hover:ring-white/20 sm:aspect-video"
+        }
+        style={expanded ? { position: "fixed" } : undefined}
       >
         {loading && (
           <div className="absolute inset-0 z-10 grid place-items-center bg-neutral-950">
@@ -100,17 +105,25 @@ export default function PlayerFrame({ tmdbId, kind, season, episode }: Props) {
           onLoad={() => setLoading(false)}
           className="absolute inset-0 h-full w-full"
         />
-        {/* Mobile-only fullscreen button — sits above the iframe so it always
-            works, even when the embedded UI is covering the whole video. */}
+        {/* Expand / minimize button — always visible, top-right */}
         <button
           type="button"
-          onClick={goFullscreen}
-          aria-label="Enter fullscreen"
-          className="absolute right-2 top-2 z-20 grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-black/60 text-white backdrop-blur transition hover:border-white/50 hover:bg-black/80 sm:hidden"
+          onClick={() => setExpanded((v) => !v)}
+          aria-label={expanded ? "Exit fullscreen" : "Enter fullscreen"}
+          title={expanded ? "Exit fullscreen (Esc)" : "Fullscreen"}
+          className="absolute right-3 top-3 z-30 grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-black/70 text-white backdrop-blur transition hover:border-white/50 hover:bg-black/90"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-            <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          {expanded ? (
+            // Minimize icon — 4 arrows pointing inward
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : (
+            // Expand icon — 4 arrows pointing outward
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
         </button>
       </div>
 
