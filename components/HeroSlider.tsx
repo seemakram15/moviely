@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { backdropUrl, posterUrl, type MediaItem } from "@/lib/tmdb";
 
 const AUTOPLAY_MS = 7000;
+const SWIPE_THRESHOLD = 50; // px
 
 export default function HeroSlider({ items }: { items: MediaItem[] }) {
   const slides = items.slice(0, 6);
@@ -31,6 +32,35 @@ export default function HeroSlider({ items }: { items: MediaItem[] }) {
     };
   }, [slides.length]);
 
+  // Touch swipe on mobile
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStartX.current = t.clientX;
+    touchStartY.current = t.clientY;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX.current;
+    const dy = t.clientY - touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+    // Only treat as swipe if horizontal motion dominates and clears threshold.
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
+      goTo(dx < 0 ? index + 1 : index - 1);
+      // Reset autoplay so the user gets full time on the new slide.
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = setInterval(
+          () => setIndex((i) => (i + 1) % slides.length),
+          AUTOPLAY_MS
+        );
+      }
+    }
+  };
+
   const current = slides[index];
   if (!current) return null;
 
@@ -38,17 +68,22 @@ export default function HeroSlider({ items }: { items: MediaItem[] }) {
   const href = `/${current.media_type}/${current.id}`;
 
   return (
-    <section className="relative h-[calc(100svh-3.5rem)] min-h-[440px] w-full overflow-hidden sm:h-[85dvh] sm:min-h-[560px]">
+    <section
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      className="relative h-[calc(100svh-3.5rem)] min-h-[440px] w-full overflow-hidden touch-pan-y select-none bg-gradient-to-br from-neutral-900 via-neutral-950 to-black sm:h-[85dvh] sm:min-h-[560px]"
+    >
       {/* Slides — poster (portrait) on mobile, backdrop (landscape) on tablet+.
-          Netflix does this too: portrait key art fills a tall phone screen,
-          while landscape backdrop fits wider viewports without cropping. */}
+          Every slide is priority-preloaded and eagerly fetched so swap is
+          instant. Sizes tuned per breakpoint so we don't ship 4K originals. */}
       {slides.map((s, i) => {
-        const bg = backdropUrl(s.backdrop_path, "original");
-        const poster = posterUrl(s.poster_path, "original");
+        // w780 for mobile poster (max ~400px screen wide), w1280 for desktop backdrop.
+        const bg = backdropUrl(s.backdrop_path, "w1280");
+        const poster = posterUrl(s.poster_path, "w780");
         return (
           <div
             key={s.id}
-            className={`absolute inset-0 transition-opacity duration-1000 ${
+            className={`absolute inset-0 transition-opacity duration-700 ${
               i === index ? "opacity-100" : "opacity-0"
             }`}
             aria-hidden={i !== index}
@@ -59,8 +94,9 @@ export default function HeroSlider({ items }: { items: MediaItem[] }) {
                 src={poster}
                 alt={s.title}
                 fill
-                priority={i === 0}
-                sizes="100vw"
+                priority
+                sizes="(max-width: 768px) 100vw, 0px"
+                fetchPriority="high"
                 className="object-cover object-top md:hidden"
               />
             )}
@@ -70,8 +106,9 @@ export default function HeroSlider({ items }: { items: MediaItem[] }) {
                 src={bg}
                 alt={s.title}
                 fill
-                priority={i === 0}
-                sizes="100vw"
+                priority
+                sizes="(min-width: 768px) 100vw, 0px"
+                fetchPriority="high"
                 className="hidden object-cover md:block"
               />
             )}
