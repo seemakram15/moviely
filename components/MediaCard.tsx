@@ -17,10 +17,13 @@ type PreviewPayload = {
 export default function MediaCard({
   item,
   fluid = false,
+  eager = false,
 }: {
   item: MediaItem;
   /** true = fill parent cell (grids); false = fixed width (horizontal rails). */
   fluid?: boolean;
+  /** true = high-priority image (above-fold cards). */
+  eager?: boolean;
 }) {
   const href = `/${item.media_type}/${item.id}`;
   const year = item.release_date?.slice(0, 4) ?? "";
@@ -83,6 +86,8 @@ export default function MediaCard({
               fill
               sizes="(max-width: 640px) 128px, (max-width: 768px) 160px, 200px"
               className="object-cover"
+              loading={eager ? "eager" : "lazy"}
+              fetchPriority={eager ? "high" : "auto"}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-xs text-neutral-500">

@@ -83,30 +83,26 @@ export default async function Home() {
     <div>
       <HeroSlider items={heroMix} />
       <div className="mx-auto -mt-14 max-w-[1600px] pb-8">
+        {/* Priority rails — first four render fastest since they're the first
+            four Suspense boundaries. Global favourites first. */}
         <AsyncRow title="🔥 Trending This Week" fetcher={getTrending} />
-        <AsyncRow title="🎬 Now Playing" fetcher={getNowPlayingMovies} />
         <AsyncRow title="⭐ Popular Movies" fetcher={getPopularMovies} />
         <AsyncRow title="📺 Popular TV Shows" fetcher={getPopularTV} />
+        <AsyncRow title="🎬 Now Playing" fetcher={getNowPlayingMovies} />
 
-        <AsyncRow title="🇺🇸 Hollywood Blockbusters" fetcher={() => getByRegion("movie", "hollywood")} />
+        {/* Regional highlights */}
         <AsyncRow title="🇮🇳 Bollywood — बॉलीवुड" fetcher={() => getByRegion("movie", "bollywood")} />
-        <AsyncRow title="🇮🇳 Bollywood TV" fetcher={() => getByRegion("tv", "bollywood")} />
-        <AsyncRow title="🇵🇰 Lollywood — Urdu Cinema" fetcher={() => getByRegion("movie", "lollywood")} />
-        <AsyncRow title="🇵🇰 Pakistani Films (All)" fetcher={() => getByRegion("movie", "pakistan")} />
-        <AsyncRow title="🇮🇳 Punjabi Cinema" fetcher={() => getByRegion("movie", "punjabi")} />
-        <AsyncRow title="🇮🇳 Tamil — Kollywood" fetcher={() => getByRegion("movie", "tamil")} />
-        <AsyncRow title="🇮🇳 Telugu — Tollywood" fetcher={() => getByRegion("movie", "telugu")} />
-        <AsyncRow title="🇰🇷 Korean Movies" fetcher={() => getByRegion("movie", "korean")} />
+        <AsyncRow title="🇺🇸 Hollywood Blockbusters" fetcher={() => getByRegion("movie", "hollywood")} />
         <AsyncRow title="🇰🇷 K-Drama" fetcher={() => getByRegion("tv", "korean")} />
         <AsyncRow title="🇯🇵 Anime" fetcher={() => getByRegion("tv", "anime")} />
+        <AsyncRow title="🇵🇰 Pakistani Films" fetcher={() => getByRegion("movie", "pakistan")} />
+        <AsyncRow title="🇮🇳 Punjabi Cinema" fetcher={() => getByRegion("movie", "punjabi")} />
+        <AsyncRow title="🇮🇳 Tamil — Kollywood" fetcher={() => getByRegion("movie", "tamil")} />
         <AsyncRow title="🇹🇷 Turkish Drama" fetcher={() => getByRegion("tv", "turkish")} />
-        <AsyncRow title="🇪🇸 Spanish Series" fetcher={() => getByRegion("tv", "spanish")} />
 
+        {/* Genre picks */}
         <AsyncRow title="💥 Action" fetcher={() => getByGenre("movie", "action")} />
         <AsyncRow title="🔪 Thriller" fetcher={() => getByGenre("movie", "thriller")} />
-        <AsyncRow title="👻 Horror" fetcher={() => getByGenre("movie", "horror")} />
-        <AsyncRow title="💘 Romance" fetcher={() => getByGenre("movie", "romance")} />
-
         <AsyncRow title="🏆 Top Rated" fetcher={getTopRatedMovies} />
       </div>
     </div>

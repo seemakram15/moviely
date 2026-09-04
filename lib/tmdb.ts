@@ -92,7 +92,12 @@ async function tmdb<T>(path: string, params: Record<string, string> = {}): Promi
   url.searchParams.set("api_key", key);
   url.searchParams.set("language", "en-US");
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url.toString(), { next: { revalidate: 3600 } });
+  // 24-hour cache on Vercel's data cache — TMDB rails change slowly and
+  // this makes rail loads instant for the second+ visitor of the day.
+  // Tagged so we can bust individual endpoints later if needed.
+  const res = await fetch(url.toString(), {
+    next: { revalidate: 86400, tags: ["tmdb", `tmdb:${path.split("/")[1]}`] },
+  });
   if (!res.ok) throw new Error(`TMDB ${path} failed: ${res.status}`);
   return res.json() as Promise<T>;
 }
