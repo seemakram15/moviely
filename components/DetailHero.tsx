@@ -75,7 +75,7 @@ export default function DetailHero({
   };
 
   return (
-    <section className="relative min-h-[85vh] w-full overflow-hidden sm:min-h-[90vh]">
+    <section className="relative min-h-[85dvh] w-full overflow-hidden sm:min-h-[90dvh]">
       {/* Background: backdrop → fades under trailer */}
       {bg && (
         <Image
@@ -105,7 +105,7 @@ export default function DetailHero({
       <div className="absolute inset-0 bg-gradient-to-r from-neutral-950 via-neutral-950/60 to-transparent" />
 
       {/* Content grid */}
-      <div className="relative z-10 mx-auto flex min-h-[85vh] max-w-[1600px] items-end px-4 pb-10 pt-24 sm:min-h-[90vh] sm:px-8 sm:pb-20 sm:pt-32">
+      <div className="relative z-10 mx-auto flex min-h-[85dvh] max-w-[1600px] items-end px-4 pb-10 pt-24 sm:min-h-[90dvh] sm:px-8 sm:pb-20 sm:pt-32">
         <div className="grid w-full grid-cols-[110px_1fr] items-end gap-4 sm:grid-cols-[180px_1fr] sm:gap-8 md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr] lg:gap-12">
           {/* Poster — always visible, scales down on mobile */}
           <div>

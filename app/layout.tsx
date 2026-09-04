@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import RouteProgress from "@/components/RouteProgress";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -122,14 +123,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="min-h-full bg-neutral-950 text-neutral-100" suppressHydrationWarning>
+        <RouteProgress />
         <Navbar />
         <main>{children}</main>
         <footer className="mt-20 border-t border-white/5 bg-black">
           <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-8 sm:py-14">
-            {/* Top: brand + link columns — always side-by-side, even on phones */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4 sm:gap-x-8">
-              {/* Brand — spans 2 cols on mobile (top row), 1 on desktop */}
-              <div className="col-span-2 sm:col-span-4 md:col-span-1">
+            {/* Top: brand + link columns — always side-by-side */}
+            <div className="grid grid-cols-3 gap-x-4 gap-y-8 sm:gap-x-6 md:grid-cols-4 md:gap-x-8">
+              {/* Brand — spans all cols on mobile (top row), 1 on desktop */}
+              <div className="col-span-3 md:col-span-1">
                 <Link href="/" className="inline-flex items-center gap-2">
                   <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-red-500 to-orange-500 text-lg font-black text-white shadow-lg shadow-red-500/30">
                     M

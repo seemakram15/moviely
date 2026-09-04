@@ -38,7 +38,7 @@ export default function HeroSlider({ items }: { items: MediaItem[] }) {
   const href = `/${current.media_type}/${current.id}`;
 
   return (
-    <section className="relative h-[80vh] min-h-[520px] w-full overflow-hidden sm:h-[88vh] sm:min-h-[560px]">
+    <section className="relative h-[calc(100svh-3.5rem)] min-h-[440px] w-full overflow-hidden sm:h-[85dvh] sm:min-h-[560px]">
       {/* Slides — pure backdrop imagery, no trailers */}
       {slides.map((s, i) => {
         const bg = backdropUrl(s.backdrop_path, "original");
@@ -69,14 +69,14 @@ export default function HeroSlider({ items }: { items: MediaItem[] }) {
       <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/40 to-transparent" />
 
       {/* Content */}
-      <div className="relative z-10 mx-auto flex h-full max-w-[1600px] flex-col justify-end px-4 pb-20 sm:px-8 sm:pb-28">
+      <div className="relative z-10 mx-auto flex h-full max-w-[1600px] flex-col justify-end px-4 pb-16 pt-20 sm:px-8 sm:pb-28 sm:pt-32">
         <span className="mb-3 inline-flex w-fit items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-red-300 backdrop-blur">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
           #{index + 1} Featured · {current.media_type === "tv" ? "Series" : "Movie"}
         </span>
         <h1
           key={current.id + "-title"}
-          className="max-w-2xl text-3xl font-black leading-[1.05] text-white drop-shadow-2xl sm:text-6xl md:text-7xl animate-in fade-in slide-in-from-bottom-4 duration-500"
+          className="max-w-2xl text-[clamp(1.6rem,7vw,2.5rem)] font-black leading-[1.05] text-white drop-shadow-2xl sm:text-6xl md:text-7xl animate-in fade-in slide-in-from-bottom-4 duration-500"
         >
           {current.title}
         </h1>
@@ -89,7 +89,7 @@ export default function HeroSlider({ items }: { items: MediaItem[] }) {
           {year && <span>{year}</span>}
           <span className="rounded border border-neutral-500 px-1.5 text-[11px] font-semibold text-neutral-300">HD</span>
         </div>
-        <p className="mt-5 max-w-xl text-sm leading-relaxed text-neutral-200 drop-shadow sm:text-base line-clamp-3">
+        <p className="mt-4 max-w-xl text-xs leading-relaxed text-neutral-200 drop-shadow line-clamp-2 sm:mt-5 sm:text-base sm:line-clamp-3">
           {current.overview}
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-2 sm:mt-8 sm:gap-3">
