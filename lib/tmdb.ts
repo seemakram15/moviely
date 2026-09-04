@@ -64,7 +64,28 @@ interface RawItem {
   first_air_date?: string;
   media_type?: MediaType;
   genre_ids?: number[];
+  adult?: boolean;
+  original_language?: string;
 }
+
+// TMDB keyword IDs for adult / erotic / softcore content. `include_adult=false`
+// doesn't block "not marked adult but clearly erotic" titles — these keywords
+// catch the ones that slip through. Sourced from TMDB /genre/keyword.
+const ADULT_KEYWORDS = [
+  "190370", // erotic movie
+  "165085", // erotica
+  "165088", // erotic drama
+  "246466", // erotic thriller
+  "6075",   // sex
+  "13141",  // softcore
+  "155477", // hentai
+  "224531", // porn
+];
+const WITHOUT_KEYWORDS_ADULT = ADULT_KEYWORDS.join(",");
+
+// Words in titles/overviews that signal adult content even when TMDB's own
+// flag is missing. Used as a last-line client-side filter.
+const ADULT_TITLE_RE = /\b(sex|erotic|nude|nudity|xxx|18\+|softcore|hardcore|hentai|porn|onlyfans|adult\s*(?:film|movie|show))\b/i;
 
 function normalize(item: RawItem, fallbackType: MediaType): MediaItem {
   const mt = (item.media_type ?? fallbackType) as MediaType;
@@ -79,6 +100,29 @@ function normalize(item: RawItem, fallbackType: MediaType): MediaItem {
     release_date: item.release_date ?? item.first_air_date ?? "",
     genre_ids: item.genre_ids,
   };
+}
+
+// Adult-signal words that can appear in a TMDB keyword name. TMDB's `adult`
+// bool lies for a lot of anime/hentai (see e.g. TV 95897 which returns
+// `adult:false` but has keywords softcore/hentai/erotic/animated porn).
+const ADULT_KEYWORD_RE = /\b(softcore|hardcore|hentai|erotic|porn|ecchi|nudity|nsfw)\b/i;
+
+/** True if a raw TMDB item looks adult / erotic. Last-line safety net. */
+export function isAdult(item: RawItem & { keywords?: { results?: { name: string }[]; keywords?: { name: string }[] } }): boolean {
+  if (item.adult === true) return true;
+  const title = (item.title ?? item.name ?? "") + " " + (item.overview ?? "");
+  if (ADULT_TITLE_RE.test(title)) return true;
+  // TV keyword payloads are under `results`, movie payloads under `keywords`.
+  const kws = item.keywords?.results ?? item.keywords?.keywords ?? [];
+  for (const k of kws) {
+    if (ADULT_KEYWORD_RE.test(k.name)) return true;
+  }
+  return false;
+}
+
+/** Filter helper used everywhere we return a list to the client. */
+function safeList<T extends RawItem>(list: T[]): T[] {
+  return list.filter((r) => !isAdult(r));
 }
 
 async function tmdb<T>(path: string, params: Record<string, string> = {}): Promise<T> {
@@ -104,32 +148,41 @@ async function tmdb<T>(path: string, params: Record<string, string> = {}): Promi
 
 export async function getTrending(): Promise<MediaItem[]> {
   const data = await tmdb<{ results: RawItem[] }>("/trending/all/week");
-  return data.results
-    .filter((r) => r.media_type === "movie" || r.media_type === "tv")
-    .map((r) => normalize(r, "movie"));
+  return safeList(
+    data.results.filter((r) => r.media_type === "movie" || r.media_type === "tv")
+  ).map((r) => normalize(r, "movie"));
 }
 
 export async function getPopularMovies(page = 1): Promise<MediaItem[]> {
   const data = await tmdb<{ results: RawItem[] }>("/movie/popular", { page: String(page) });
-  return data.results.map((r) => normalize(r, "movie"));
+  return safeList(data.results).map((r) => normalize(r, "movie"));
 }
 
 export async function getPopularTV(page = 1): Promise<MediaItem[]> {
   const data = await tmdb<{ results: RawItem[] }>("/tv/popular", { page: String(page) });
-  return data.results.map((r) => normalize(r, "tv"));
+  return safeList(data.results).map((r) => normalize(r, "tv"));
 }
 
 export async function getTopRatedMovies(): Promise<MediaItem[]> {
   const data = await tmdb<{ results: RawItem[] }>("/movie/top_rated");
-  return data.results.map((r) => normalize(r, "movie"));
+  return safeList(data.results).map((r) => normalize(r, "movie"));
 }
 
 export async function getNowPlayingMovies(): Promise<MediaItem[]> {
   const data = await tmdb<{ results: RawItem[] }>("/movie/now_playing");
-  return data.results.map((r) => normalize(r, "movie"));
+  return safeList(data.results).map((r) => normalize(r, "movie"));
 }
 
-// Generic /discover — any combination of TMDB filters.
+// Generic /discover — any combination of TMDB filters. Adult content is
+// filtered at three layers: TMDB's own `include_adult=false`, our keyword
+// blocklist via `without_keywords`, and a client-side title/overview regex
+// pass at the very end.
+const SAFETY_PARAMS = {
+  include_adult: "false",
+  include_video: "false",
+  without_keywords: WITHOUT_KEYWORDS_ADULT,
+};
+
 export async function discover(
   kind: MediaType,
   params: Record<string, string> = {}
@@ -137,11 +190,11 @@ export async function discover(
   const base = {
     sort_by: "popularity.desc",
     "vote_count.gte": kind === "movie" ? "50" : "20",
-    include_adult: "false",
+    ...SAFETY_PARAMS,
     ...params,
   };
   const data = await tmdb<{ results: RawItem[] }>(`/discover/${kind}`, base);
-  return data.results.map((r) => normalize(r, kind));
+  return safeList(data.results).map((r) => normalize(r, kind));
 }
 
 /** Discover with pagination + total pages, for the /browse page. */
@@ -152,7 +205,7 @@ export async function discoverPage(
   const base = {
     sort_by: "popularity.desc",
     "vote_count.gte": kind === "movie" ? "50" : "20",
-    include_adult: "false",
+    ...SAFETY_PARAMS,
     ...params,
   };
   const data = await tmdb<{
@@ -162,7 +215,7 @@ export async function discoverPage(
     total_results: number;
   }>(`/discover/${kind}`, base);
   return {
-    items: data.results.map((r) => normalize(r, kind)),
+    items: safeList(data.results).map((r) => normalize(r, kind)),
     page: data.page,
     totalPages: Math.min(data.total_pages, 500), // TMDB caps at 500 pages
     totalResults: data.total_results,
@@ -252,13 +305,28 @@ export async function getHindiTV() {
   return getByRegion("tv", "bollywood");
 }
 
+/** Thrown when a details endpoint returns adult content — page routes catch
+ *  this and call notFound() so the URL 404s instead of exposing the title. */
+export class AdultContentError extends Error {
+  constructor() {
+    super("adult content");
+    this.name = "AdultContentError";
+  }
+}
+
 export async function getMovieDetails(id: number): Promise<MovieDetails> {
-  const raw = await tmdb<RawItem & Partial<MovieDetails>>(`/movie/${id}`);
+  const raw = await tmdb<RawItem & Partial<MovieDetails>>(`/movie/${id}`, {
+    append_to_response: "keywords",
+  });
+  if (isAdult(raw)) throw new AdultContentError();
   return { ...normalize(raw, "movie"), ...(raw as unknown as MovieDetails) };
 }
 
 export async function getTVDetails(id: number): Promise<TVDetails> {
-  const raw = await tmdb<RawItem & Partial<TVDetails>>(`/tv/${id}`);
+  const raw = await tmdb<RawItem & Partial<TVDetails>>(`/tv/${id}`, {
+    append_to_response: "keywords",
+  });
+  if (isAdult(raw)) throw new AdultContentError();
   return { ...normalize(raw, "tv"), ...(raw as unknown as TVDetails) };
 }
 
@@ -336,9 +404,9 @@ export async function searchMulti(query: string): Promise<MediaItem[]> {
   const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) throw new Error(`TMDB search failed: ${res.status}`);
   const data = (await res.json()) as { results: RawItem[] };
-  return data.results
-    .filter((r) => r.media_type === "movie" || r.media_type === "tv")
-    .map((r) => normalize(r, (r.media_type ?? "movie") as MediaType));
+  return safeList(
+    data.results.filter((r) => r.media_type === "movie" || r.media_type === "tv")
+  ).map((r) => normalize(r, (r.media_type ?? "movie") as MediaType));
 }
 
 export function posterUrl(
