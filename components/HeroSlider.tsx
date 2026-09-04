@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { backdropUrl, type MediaItem } from "@/lib/tmdb";
+import { backdropUrl, posterUrl, type MediaItem } from "@/lib/tmdb";
 
 const AUTOPLAY_MS = 7000;
 
@@ -39,9 +39,12 @@ export default function HeroSlider({ items }: { items: MediaItem[] }) {
 
   return (
     <section className="relative h-[calc(100svh-3.5rem)] min-h-[440px] w-full overflow-hidden sm:h-[85dvh] sm:min-h-[560px]">
-      {/* Slides — pure backdrop imagery, no trailers */}
+      {/* Slides — poster (portrait) on mobile, backdrop (landscape) on tablet+.
+          Netflix does this too: portrait key art fills a tall phone screen,
+          while landscape backdrop fits wider viewports without cropping. */}
       {slides.map((s, i) => {
         const bg = backdropUrl(s.backdrop_path, "original");
+        const poster = posterUrl(s.poster_path, "original");
         return (
           <div
             key={s.id}
@@ -50,6 +53,18 @@ export default function HeroSlider({ items }: { items: MediaItem[] }) {
             }`}
             aria-hidden={i !== index}
           >
+            {/* Mobile: poster */}
+            {poster && (
+              <Image
+                src={poster}
+                alt={s.title}
+                fill
+                priority={i === 0}
+                sizes="100vw"
+                className="object-cover object-top md:hidden"
+              />
+            )}
+            {/* Tablet+: backdrop */}
             {bg && (
               <Image
                 src={bg}
@@ -57,7 +72,7 @@ export default function HeroSlider({ items }: { items: MediaItem[] }) {
                 fill
                 priority={i === 0}
                 sizes="100vw"
-                className="object-cover"
+                className="hidden object-cover md:block"
               />
             )}
           </div>

@@ -13,30 +13,49 @@ import {
 
 export const revalidate = 3600;
 
-// Netflix-style hero mix: interleave top Hollywood + top Bollywood movies,
-// drop TV, drop titles without a backdrop, cap at 6.
+// Deterministic PRNG seeded by today's UTC date, so every visitor sees the
+// same hero mix on the same day and a different one tomorrow — no client-side
+// hydration mismatch, no personal randomness leaking in.
+function seedForToday(): number {
+  const d = new Date();
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+}
+function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function shuffle<T>(arr: T[], rand: () => number): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Netflix-style hero mix — build a large pool of quality titles, then shuffle
+// with today's date seed and take the top 5. The pool rotates every 24h.
 function curateHero(
   popular: MediaItem[],
   bollywood: MediaItem[],
   trending: MediaItem[]
 ): MediaItem[] {
   const usable = (list: MediaItem[]) =>
-    list.filter((m) => m.media_type === "movie" && m.backdrop_path && m.vote_average >= 6);
-  const hollywood = usable(popular);
-  const boll = usable(bollywood);
-  const trend = usable(trending);
-  // Interleave: Hollywood, Bollywood, Trending, Hollywood, Bollywood, Trending
-  const mix: MediaItem[] = [];
-  const max = Math.max(hollywood.length, boll.length, trend.length);
-  for (let i = 0; i < max && mix.length < 12; i++) {
-    if (hollywood[i]) mix.push(hollywood[i]);
-    if (boll[i]) mix.push(boll[i]);
-    if (trend[i]) mix.push(trend[i]);
-  }
-  // Dedupe by id
+    list.filter(
+      (m) => m.media_type === "movie" && m.backdrop_path && m.poster_path && m.vote_average >= 6.5
+    );
+  // Combine + dedupe first, then shuffle.
+  const pool = [...usable(popular), ...usable(bollywood), ...usable(trending)];
   const seen = new Set<number>();
-  const unique = mix.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
-  return unique.slice(0, 6);
+  const unique = pool.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
+  const shuffled = shuffle(unique, mulberry32(seedForToday()));
+  return shuffled.slice(0, 5);
 }
 
 export default async function Home() {
