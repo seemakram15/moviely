@@ -77,9 +77,19 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-function FooterCol({ title, children }: { title: string; children: React.ReactNode }) {
+function FooterCol({
+  title,
+  align = "left",
+  children,
+}: {
+  title: string;
+  align?: "left" | "center" | "right";
+  children: React.ReactNode;
+}) {
+  const alignCls =
+    align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left";
   return (
-    <div>
+    <div className={alignCls}>
       <h3 className="text-[11px] font-semibold uppercase tracking-widest text-white">{title}</h3>
       <ul className="mt-3 space-y-2 text-sm">{children}</ul>
     </div>
@@ -128,36 +138,39 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main>{children}</main>
         <footer className="mt-20 border-t border-white/5 bg-black">
           <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-8 sm:py-14">
-            {/* Top: brand + link columns — always side-by-side */}
-            <div className="grid grid-cols-3 gap-x-4 gap-y-8 sm:gap-x-6 md:grid-cols-4 md:gap-x-8">
-              {/* Brand — spans all cols on mobile (top row), 1 on desktop */}
-              <div className="col-span-3 md:col-span-1">
-                <Link href="/" className="inline-flex items-center gap-2">
-                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-red-500 to-orange-500 text-lg font-black text-white shadow-lg shadow-red-500/30">
-                    M
-                  </span>
-                  <span className="text-xl font-black tracking-tight text-white">Moviely</span>
-                </Link>
-                <p className="mt-3 max-w-xs text-sm leading-relaxed text-neutral-400">
-                  Discover and stream movies & TV shows from every corner of the world.
-                </p>
-              </div>
+            {/* Brand + tagline — full-width row */}
+            <div>
+              <Link href="/" className="inline-flex items-center gap-2">
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-red-500 to-orange-500 text-lg font-black text-white shadow-lg shadow-red-500/30">
+                  M
+                </span>
+                <span className="text-xl font-black tracking-tight text-white">Moviely</span>
+              </Link>
+              <p className="mt-3 text-sm leading-relaxed text-neutral-400">
+                Discover and stream movies &amp; TV shows from every corner of the world.
+              </p>
+            </div>
 
-              <FooterCol title="Browse">
+            {/* Divider */}
+            <div className="my-8 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+            {/* Link columns — full width, left / middle / right */}
+            <div className="grid grid-cols-3 gap-4 sm:gap-8">
+              <FooterCol title="Browse" align="left">
                 <FooterLink href="/">Home</FooterLink>
                 <FooterLink href="/browse?type=movie">Movies</FooterLink>
                 <FooterLink href="/browse?type=tv">TV Shows</FooterLink>
                 <FooterLink href="/browse">All Filters</FooterLink>
               </FooterCol>
 
-              <FooterCol title="Regions">
+              <FooterCol title="Regions" align="center">
                 <FooterLink href="/browse?region=hollywood">Hollywood</FooterLink>
                 <FooterLink href="/browse?region=bollywood">Bollywood</FooterLink>
                 <FooterLink href="/browse?region=korean">K-Drama</FooterLink>
                 <FooterLink href="/browse?region=anime">Anime</FooterLink>
               </FooterCol>
 
-              <FooterCol title="About">
+              <FooterCol title="About" align="right">
                 <FooterLink href="https://www.themoviedb.org/" external>TMDB</FooterLink>
                 <FooterLink href="https://www.vidking.net/#documentation" external>VidKing</FooterLink>
                 <FooterLink href="/search">Search</FooterLink>
@@ -167,7 +180,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             {/* Divider */}
             <div className="my-10 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-            {/* Signature — single, prominent, centered — the one place Waseem's name appears in the footer */}
+            {/* Signature — centered */}
             <div className="flex flex-col items-center gap-3 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-500">
                 Crafted with ♥ by
