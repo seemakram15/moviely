@@ -61,16 +61,28 @@ export default async function OG() {
               height: 88,
               borderRadius: 20,
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 56,
-              fontWeight: 900,
-              background:
-                "linear-gradient(135deg, #ef4444 0%, #f97316 100%)",
               boxShadow: "0 20px 40px -10px rgba(239,68,68,0.6)",
             }}
           >
-            M
+            <svg width={88} height={88} viewBox="0 0 40 40" fill="none">
+              <defs>
+                <linearGradient id="og-g" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stopColor="#ef4444" />
+                  <stop offset="1" stopColor="#f97316" />
+                </linearGradient>
+              </defs>
+              <rect width="40" height="40" rx="10" fill="url(#og-g)" />
+              <path
+                d="M9 29V12l11 11 11-11v17"
+                stroke="white"
+                strokeWidth={4.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+              <circle cx="31" cy="29" r="7.5" fill="white" />
+              <path d="M28.5 25.3v7.4l6.5-3.7-6.5-3.7Z" fill="url(#og-g)" />
+            </svg>
           </div>
           <div
             style={{

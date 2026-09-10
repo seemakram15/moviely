@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import RouteProgress from "@/components/RouteProgress";
+import Logo from "@/components/Logo";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -141,9 +142,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             {/* Brand + tagline — full-width row */}
             <div>
               <Link href="/" className="inline-flex items-center gap-2">
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-red-500 to-orange-500 text-lg font-black text-white shadow-lg shadow-red-500/30">
-                  M
-                </span>
+                <Logo size={36} />
                 <span className="text-xl font-black tracking-tight text-white">Moviely</span>
               </Link>
               <p className="mt-3 text-sm leading-relaxed text-neutral-400">
