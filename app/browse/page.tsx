@@ -4,6 +4,7 @@ import BackButton from "@/components/BackButton";
 import FilterBar from "@/components/FilterBar";
 import {
   discoverPage,
+  searchInCategory,
   REGIONS,
   GENRES,
   type RegionKey,
@@ -24,6 +25,7 @@ export default async function BrowsePage(props: PageProps<"/browse">) {
   const genre = one(sp?.genre) as GenreKey | undefined;
   const sort = one(sp?.sort) ?? "popularity.desc";
   const year = one(sp?.year);
+  const q = one(sp?.q) ?? "";
   const page = Math.max(1, Math.min(500, Number(one(sp?.page) ?? "1") || 1));
 
   const params: Record<string, string> = { sort_by: sort, page: String(page) };
@@ -34,7 +36,14 @@ export default async function BrowsePage(props: PageProps<"/browse">) {
     else params.first_air_date_year = year;
   }
 
-  const { items, page: currentPage, totalPages, totalResults } = await discoverPage(kind, params);
+  const { items, page: currentPage, totalPages, totalResults } = q
+    ? await searchInCategory(kind, q, {
+        genreId: genre ? GENRES[genre] : undefined,
+        language: region ? (REGIONS[region][kind] as { with_original_language?: string }).with_original_language : undefined,
+        year,
+        page,
+      })
+    : await discoverPage(kind, params);
 
   const summary = [
     region ? REGIONS[region].label : null,
@@ -59,6 +68,7 @@ export default async function BrowsePage(props: PageProps<"/browse">) {
     next.delete("first_air_date_year");
     if (sort !== "popularity.desc") next.set("sort", sort);
     if (year) next.set("year", year);
+    if (q) next.set("q", q);
     return `/browse?${next.toString()}`;
   };
 

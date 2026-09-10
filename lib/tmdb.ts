@@ -229,27 +229,29 @@ export async function discoverPage(
 // dub of a Bollywood film doesn't leak into K-Drama (and vice-versa). TMDB's
 // `with_origin_country` is a strict AND filter with `with_original_language`.
 export const REGIONS = {
-  hollywood: { label: "🇺🇸 Hollywood", movie: { with_origin_country: "US", with_original_language: "en" }, tv: { with_origin_country: "US", with_original_language: "en" } },
-  bollywood: { label: "🇮🇳 Bollywood", movie: { with_origin_country: "IN", with_original_language: "hi" }, tv: { with_origin_country: "IN", with_original_language: "hi" } },
-  punjabi:   { label: "🇮🇳 Punjabi",   movie: { with_origin_country: "IN", with_original_language: "pa" }, tv: { with_origin_country: "IN", with_original_language: "pa" } },
-  tamil:     { label: "🇮🇳 Tamil",     movie: { with_origin_country: "IN", with_original_language: "ta" }, tv: { with_origin_country: "IN", with_original_language: "ta" } },
-  telugu:    { label: "🇮🇳 Telugu",    movie: { with_origin_country: "IN", with_original_language: "te" }, tv: { with_origin_country: "IN", with_original_language: "te" } },
-  malayalam: { label: "🇮🇳 Malayalam", movie: { with_origin_country: "IN", with_original_language: "ml" }, tv: { with_origin_country: "IN", with_original_language: "ml" } },
-  lollywood: { label: "🇵🇰 Lollywood — Urdu", movie: { with_origin_country: "PK", with_original_language: "ur" }, tv: { with_origin_country: "PK", with_original_language: "ur" } },
-  pakistan:  { label: "🇵🇰 Pakistani (all)",  movie: { with_origin_country: "PK" }, tv: { with_origin_country: "PK" } },
-  pashto:    { label: "🇵🇰 Pashto",           movie: { with_origin_country: "PK", with_original_language: "ps" }, tv: { with_origin_country: "PK", with_original_language: "ps" } },
-  korean:    { label: "🇰🇷 Korean",    movie: { with_origin_country: "KR", with_original_language: "ko" }, tv: { with_origin_country: "KR", with_original_language: "ko" } },
-  japanese:  { label: "🇯🇵 Japanese",  movie: { with_origin_country: "JP", with_original_language: "ja" }, tv: { with_origin_country: "JP", with_original_language: "ja" } },
-  anime:     { label: "🇯🇵 Anime",     movie: { with_origin_country: "JP", with_original_language: "ja", with_genres: "16" }, tv: { with_origin_country: "JP", with_original_language: "ja", with_genres: "16" } },
-  chinese:   { label: "🇨🇳 Chinese",   movie: { with_origin_country: "CN", with_original_language: "zh" }, tv: { with_origin_country: "CN", with_original_language: "zh" } },
-  turkish:   { label: "🇹🇷 Turkish",   movie: { with_origin_country: "TR", with_original_language: "tr" }, tv: { with_origin_country: "TR", with_original_language: "tr" } },
-  spanish:   { label: "🇪🇸 Spanish",   movie: { with_origin_country: "ES", with_original_language: "es" }, tv: { with_origin_country: "ES", with_original_language: "es" } },
-  french:    { label: "🇫🇷 French",    movie: { with_origin_country: "FR", with_original_language: "fr" }, tv: { with_origin_country: "FR", with_original_language: "fr" } },
-  german:    { label: "🇩🇪 German",    movie: { with_origin_country: "DE", with_original_language: "de" }, tv: { with_origin_country: "DE", with_original_language: "de" } },
-  italian:   { label: "🇮🇹 Italian",   movie: { with_origin_country: "IT", with_original_language: "it" }, tv: { with_origin_country: "IT", with_original_language: "it" } },
-  russian:   { label: "🇷🇺 Russian",   movie: { with_origin_country: "RU", with_original_language: "ru" }, tv: { with_origin_country: "RU", with_original_language: "ru" } },
-  arabic:    { label: "🇸🇦 Arabic",    movie: { with_original_language: "ar" }, tv: { with_original_language: "ar" } },
-  bengali:   { label: "🇧🇩 Bengali",   movie: { with_original_language: "bn" }, tv: { with_original_language: "bn" } },
+  hollywood: { label: "Hollywood", movie: { with_origin_country: "US", with_original_language: "en" }, tv: { with_origin_country: "US", with_original_language: "en" } },
+  bollywood: { label: "Bollywood", movie: { with_origin_country: "IN", with_original_language: "hi" }, tv: { with_origin_country: "IN", with_original_language: "hi" } },
+  // No origin_country restriction: Punjabi films are frequently produced/tagged
+  // out of Canada/UK/Pakistan as well as India, so language alone catches more.
+  punjabi:   { label: "Punjabi",   movie: { with_original_language: "pa" }, tv: { with_original_language: "pa" } },
+  tamil:     { label: "Tamil",     movie: { with_origin_country: "IN", with_original_language: "ta" }, tv: { with_origin_country: "IN", with_original_language: "ta" } },
+  telugu:    { label: "Telugu",    movie: { with_origin_country: "IN", with_original_language: "te" }, tv: { with_origin_country: "IN", with_original_language: "te" } },
+  malayalam: { label: "Malayalam", movie: { with_origin_country: "IN", with_original_language: "ml" }, tv: { with_origin_country: "IN", with_original_language: "ml" } },
+  lollywood: { label: "Lollywood — Urdu", movie: { with_origin_country: "PK", with_original_language: "ur" }, tv: { with_origin_country: "PK", with_original_language: "ur" } },
+  pakistan:  { label: "Pakistani (all)",  movie: { with_origin_country: "PK" }, tv: { with_origin_country: "PK" } },
+  pashto:    { label: "Pashto",           movie: { with_origin_country: "PK", with_original_language: "ps" }, tv: { with_origin_country: "PK", with_original_language: "ps" } },
+  korean:    { label: "Korean",    movie: { with_origin_country: "KR", with_original_language: "ko" }, tv: { with_origin_country: "KR", with_original_language: "ko" } },
+  japanese:  { label: "Japanese",  movie: { with_origin_country: "JP", with_original_language: "ja" }, tv: { with_origin_country: "JP", with_original_language: "ja" } },
+  anime:     { label: "Anime",     movie: { with_origin_country: "JP", with_original_language: "ja", with_genres: "16" }, tv: { with_origin_country: "JP", with_original_language: "ja", with_genres: "16" } },
+  chinese:   { label: "Chinese",   movie: { with_origin_country: "CN", with_original_language: "zh" }, tv: { with_origin_country: "CN", with_original_language: "zh" } },
+  turkish:   { label: "Turkish",   movie: { with_origin_country: "TR", with_original_language: "tr" }, tv: { with_origin_country: "TR", with_original_language: "tr" } },
+  spanish:   { label: "Spanish",   movie: { with_origin_country: "ES", with_original_language: "es" }, tv: { with_origin_country: "ES", with_original_language: "es" } },
+  french:    { label: "French",    movie: { with_origin_country: "FR", with_original_language: "fr" }, tv: { with_origin_country: "FR", with_original_language: "fr" } },
+  german:    { label: "German",    movie: { with_origin_country: "DE", with_original_language: "de" }, tv: { with_origin_country: "DE", with_original_language: "de" } },
+  italian:   { label: "Italian",   movie: { with_origin_country: "IT", with_original_language: "it" }, tv: { with_origin_country: "IT", with_original_language: "it" } },
+  russian:   { label: "Russian",   movie: { with_origin_country: "RU", with_original_language: "ru" }, tv: { with_origin_country: "RU", with_original_language: "ru" } },
+  arabic:    { label: "Arabic",    movie: { with_original_language: "ar" }, tv: { with_original_language: "ar" } },
+  bengali:   { label: "Bengali",   movie: { with_original_language: "bn" }, tv: { with_original_language: "bn" } },
 } as const;
 
 export const SORT_OPTIONS = {
@@ -407,6 +409,47 @@ export async function searchMulti(query: string): Promise<MediaItem[]> {
   return safeList(
     data.results.filter((r) => r.media_type === "movie" || r.media_type === "tv")
   ).map((r) => normalize(r, (r.media_type ?? "movie") as MediaType));
+}
+
+/**
+ * Title search scoped to a category page. TMDB's search endpoints don't
+ * support `with_genres`/`with_origin_country` alongside `query`, so region
+ * and genre are applied as a client-side filter over the search results.
+ */
+export async function searchInCategory(
+  kind: MediaType,
+  query: string,
+  opts: { genreId?: number; language?: string; year?: string; page?: number } = {}
+): Promise<{ items: MediaItem[]; page: number; totalPages: number; totalResults: number }> {
+  if (!query.trim()) return { items: [], page: 1, totalPages: 1, totalResults: 0 };
+  const key = process.env.TMDB_API_KEY;
+  if (!key) throw new Error("TMDB_API_KEY not set");
+  const url = new URL(`${BASE}/search/${kind}`);
+  url.searchParams.set("api_key", key);
+  url.searchParams.set("language", "en-US");
+  url.searchParams.set("query", query);
+  url.searchParams.set("include_adult", "false");
+  url.searchParams.set("page", String(opts.page ?? 1));
+  if (opts.year) {
+    url.searchParams.set(kind === "movie" ? "primary_release_year" : "first_air_date_year", opts.year);
+  }
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  if (!res.ok) throw new Error(`TMDB search failed: ${res.status}`);
+  const data = (await res.json()) as {
+    results: RawItem[];
+    page: number;
+    total_pages: number;
+    total_results: number;
+  };
+  let results = safeList(data.results);
+  if (opts.genreId) results = results.filter((r) => r.genre_ids?.includes(opts.genreId!));
+  if (opts.language) results = results.filter((r) => r.original_language === opts.language);
+  return {
+    items: results.map((r) => normalize(r, kind)),
+    page: data.page,
+    totalPages: Math.min(data.total_pages, 500),
+    totalResults: opts.genreId || opts.language ? results.length : data.total_results,
+  };
 }
 
 export function posterUrl(

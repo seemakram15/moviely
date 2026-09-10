@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { REGIONS, GENRES, SORT_OPTIONS } from "@/lib/tmdb";
 
 const REGION_KEYS = Object.keys(REGIONS) as (keyof typeof REGIONS)[];
@@ -25,6 +25,11 @@ export default function FilterBar() {
   const genre = params.get("genre") ?? "";
   const sort = params.get("sort") ?? "popularity.desc";
   const year = params.get("year") ?? "";
+  const q = params.get("q") ?? "";
+  const [query, setQuery] = useState(q);
+
+  // Keep the input in sync when navigation (e.g. Clear all) resets `q`.
+  useEffect(() => setQuery(q), [q]);
 
   const update = (patch: Record<string, string>) => {
     const next = new URLSearchParams(params.toString());
@@ -37,7 +42,8 @@ export default function FilterBar() {
     startTransition(() => router.push(`/browse?${next.toString()}`));
   };
 
-  const activeCount = [region, genre, year].filter(Boolean).length + (sort !== "popularity.desc" ? 1 : 0);
+  const activeCount =
+    [region, genre, year, q].filter(Boolean).length + (sort !== "popularity.desc" ? 1 : 0);
 
   const clear = () =>
     startTransition(() =>
@@ -94,6 +100,40 @@ export default function FilterBar() {
           📺 TV Shows
         </button>
       </div>
+
+      {/* Scoped search */}
+      <form
+        className="mb-4 flex items-center rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 focus-within:border-red-500/50"
+        onSubmit={(e) => {
+          e.preventDefault();
+          update({ q: query.trim() });
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-neutral-400" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+        </svg>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search within this list…"
+          aria-label="Search within current filters"
+          className="ml-2 w-full bg-transparent text-sm text-white placeholder:text-neutral-500 focus:outline-none"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              update({ q: "" });
+            }}
+            className="ml-2 shrink-0 text-xs font-medium text-neutral-400 hover:text-white"
+          >
+            Clear
+          </button>
+        )}
+      </form>
 
       {/* Dropdowns */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
