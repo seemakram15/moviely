@@ -15,9 +15,8 @@ type Props = {
 const PREFS_KEY = "moviely:playerPrefs";
 
 // How long a source gets to return its document before we give up on it and
-// try the next one. Generous enough for a slow phone, short enough that a dead
-// source doesn't strand the user staring at a spinner.
-const LOAD_BUDGET_MS = 8000;
+// try the next one.
+const LOAD_BUDGET_MS = 15000;
 
 type Prefs = { sourceId: string };
 
@@ -35,16 +34,23 @@ function loadPrefs(): Prefs {
   }
 }
 
-// Add a <link rel="preconnect"> once. Warms DNS + TLS so the iframe starts
-// fetching video bytes the instant the user hits play.
+// Add <link rel="preconnect"> + <link rel="dns-prefetch"> once per origin.
+// Warms DNS + TLS so the iframe starts fetching video bytes sooner.
 function preconnect(href: string) {
   if (typeof document === "undefined" || !href) return;
-  if (document.head.querySelector(`link[rel="preconnect"][href="${href}"]`)) return;
-  const link = document.createElement("link");
-  link.rel = "preconnect";
-  link.href = href;
-  link.crossOrigin = "";
-  document.head.appendChild(link);
+  if (!document.head.querySelector(`link[rel="preconnect"][href="${href}"]`)) {
+    const pc = document.createElement("link");
+    pc.rel = "preconnect";
+    pc.href = href;
+    pc.crossOrigin = "";
+    document.head.appendChild(pc);
+  }
+  if (!document.head.querySelector(`link[rel="dns-prefetch"][href="${href}"]`)) {
+    const dns = document.createElement("link");
+    dns.rel = "dns-prefetch";
+    dns.href = href;
+    document.head.appendChild(dns);
+  }
 }
 
 function isSlowNetwork(): boolean {
@@ -170,6 +176,8 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, poster }: P
         {!started ? (
           <button
             type="button"
+            onMouseEnter={() => preconnect(originOf(activeSource))}
+            onTouchStart={() => preconnect(originOf(activeSource))}
             onClick={() => setStarted(true)}
             className="absolute inset-0 z-20 grid h-full w-full place-items-center"
             aria-label="Play"

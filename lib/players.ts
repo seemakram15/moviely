@@ -81,30 +81,6 @@ export const SOURCES: PlayerSource[] = [
         autoplay: o?.autoplay ? "1" : undefined,
       }),
   },
-  {
-    id: "vidking",
-    name: "VidKing",
-    movie: (id, o) =>
-      q(`https://www.vidking.net/embed/movie/${id}`, {
-        autoPlay: o?.autoplay ? "true" : undefined,
-      }),
-    tv: (id, s, e, o) =>
-      q(`https://www.vidking.net/embed/tv/${id}/${s}/${e}`, {
-        autoPlay: o?.autoplay ? "true" : undefined,
-      }),
-  },
-  {
-    id: "autoembed",
-    name: "AutoEmbed",
-    movie: (id, o) =>
-      q(`https://player.autoembed.cc/embed/movie/${id}`, {
-        autoplay: o?.autoplay ? "1" : undefined,
-      }),
-    tv: (id, s, e, o) =>
-      q(`https://player.autoembed.cc/embed/tv/${id}/${s}/${e}`, {
-        autoplay: o?.autoplay ? "1" : undefined,
-      }),
-  },
 ];
 
 export function getSource(id: string): PlayerSource {
@@ -118,8 +94,6 @@ export const PLAYER_ORIGINS = [
   "https://vidlink.pro",
   "https://vidsrc.cc",
   "https://embed.su",
-  "https://www.vidking.net",
-  "https://player.autoembed.cc",
 ];
 
 export function originOf(source: PlayerSource): string {

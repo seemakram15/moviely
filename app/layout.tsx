@@ -127,12 +127,31 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      // Silences hydration warnings caused by browser extensions that inject
-      // attributes onto <html> before React hydrates (e.g. Cap, Grammarly,
-      // ColorZilla). Only the <html> attributes are ignored — component-level
-      // hydration is still validated normally.
       suppressHydrationWarning
     >
+      <head>
+        {/* Warm TCP+TLS to all player origins on every page load, before any JS runs */}
+        <link rel="preconnect" href="https://player.videasy.net" crossOrigin="" />
+        <link rel="preconnect" href="https://vidlink.pro" crossOrigin="" />
+        <link rel="preconnect" href="https://vidsrc.cc" crossOrigin="" />
+        <link rel="preconnect" href="https://embed.su" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://player.videasy.net" />
+        <link rel="dns-prefetch" href="https://vidlink.pro" />
+        <link rel="dns-prefetch" href="https://vidsrc.cc" />
+        <link rel="dns-prefetch" href="https://embed.su" />
+
+        {/* PWA */}
+        <meta name="application-name" content="Moviely" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Moviely" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}`,
+          }}
+        />
+      </head>
       <body className="min-h-full bg-neutral-950 text-neutral-100" suppressHydrationWarning>
         <RouteProgress />
         <Navbar />
