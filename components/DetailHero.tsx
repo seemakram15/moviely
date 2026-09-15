@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { backdropUrl, posterUrl, type MediaType } from "@/lib/tmdb";
 import TrailerModal from "./TrailerModal";
+import WatchlistButton from "./WatchlistButton";
 
 type Genre = { id: number; name: string };
 
@@ -199,6 +200,12 @@ export default function DetailHero({
                   Watch Trailer
                 </button>
               )}
+              <WatchlistButton
+                tmdbId={id}
+                kind={mediaType}
+                title={title}
+                poster={posterPath ? posterUrl(posterPath, "w342") : null}
+              />
               {trailerKey && showTrailer && (
                 <button
                   type="button"

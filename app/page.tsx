@@ -1,5 +1,6 @@
 import HeroSlider from "@/components/HeroSlider";
 import AsyncRow from "@/components/AsyncRow";
+import ContinueWatching from "@/components/ContinueWatching";
 import {
   getTrending,
   getPopularMovies,
@@ -83,6 +84,9 @@ export default async function Home() {
     <div>
       <HeroSlider items={heroMix} />
       <div className="mx-auto -mt-14 max-w-[1600px] pb-8">
+        {/* Continue watching row — client component, reads localStorage */}
+        <ContinueWatching />
+
         {/* Priority rails — first four render fastest since they're the first
             four Suspense boundaries. Global favourites first. */}
         <AsyncRow title="🔥 Trending This Week" fetcher={getTrending} />

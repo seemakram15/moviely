@@ -52,6 +52,7 @@ export default async function MoviePage(props: PageProps<"/movie/[id]">) {
         <PlayerFrame
           tmdbId={tmdbId}
           kind="movie"
+          title={movie.title}
           poster={movie.backdrop_path ? `${IMG}/w780${movie.backdrop_path}` : undefined}
         />
       </section>

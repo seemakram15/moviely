@@ -50,7 +50,7 @@ export default async function TVPage(props: PageProps<"/tv/[id]">) {
             <p className="text-sm text-neutral-400">Pick a season and episode below</p>
           </div>
         </div>
-        <EpisodeSelector tmdbId={tmdbId} seasons={show.seasons ?? []} />
+        <EpisodeSelector tmdbId={tmdbId} seasons={show.seasons ?? []} title={show.title} />
       </section>
     </div>
   );

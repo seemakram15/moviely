@@ -1,21 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { SOURCES, PLAYER_ORIGINS, originOf } from "@/lib/players";
+import {
+  addToHistory,
+  getDataSaver,
+  setDataSaver,
+  recordSourceSpeed,
+  getSourceSpeeds,
+} from "@/lib/userStore";
 
 type Props = {
   tmdbId: number;
   kind: "movie" | "tv";
   season?: number;
   episode?: number;
-  /** Backdrop URL shown on the facade before playback starts. */
+  title?: string;
   poster?: string;
 };
 
 const PREFS_KEY = "moviely:playerPrefs";
-
-// How long a source gets to return its document before we give up on it and
-// try the next one.
 const LOAD_BUDGET_MS = 15000;
 
 type Prefs = { sourceId: string };
@@ -34,8 +38,6 @@ function loadPrefs(): Prefs {
   }
 }
 
-// Add <link rel="preconnect"> + <link rel="dns-prefetch"> once per origin.
-// Warms DNS + TLS so the iframe starts fetching video bytes sooner.
 function preconnect(href: string) {
   if (typeof document === "undefined" || !href) return;
   if (!document.head.querySelector(`link[rel="preconnect"][href="${href}"]`)) {
@@ -65,30 +67,57 @@ function isSlowNetwork(): boolean {
   return false;
 }
 
-export default function PlayerFrame({ tmdbId, kind, season, episode, poster }: Props) {
+/** Sort SOURCES putting fastest-known first, unknowns after. */
+function rankSources(speeds: Record<string, number>) {
+  return [...SOURCES].sort((a, b) => {
+    const sa = speeds[a.id] ?? Infinity;
+    const sb = speeds[b.id] ?? Infinity;
+    return sa - sb;
+  });
+}
+
+export default function PlayerFrame({ tmdbId, kind, season, episode, title, poster }: Props) {
   const [sourceId, setSourceId] = useState<string>(SOURCES[0].id);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
-  // Iframe is not mounted until the user presses play — lazy-loads the embed
-  // instead of fetching it before the viewer has asked for it.
   const [started, setStarted] = useState(false);
-  // Sources we already gave up on for this title, so failover never loops.
   const [exhausted, setExhausted] = useState<string[]>([]);
   const [autoSwitched, setAutoSwitched] = useState<string | null>(null);
+  const [dataSaver, setDataSaverState] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false); // mobile source sheet
+  const [miniPlayer, setMiniPlayer] = useState(false);
+  const [showSkipIntro, setShowSkipIntro] = useState(false);
+  const [networkRestored, setNetworkRestored] = useState(false);
 
+  // Loading bar state
+  const [barMode, setBarMode] = useState<null | "loading" | "buffering">(null);
+  const [loadPct, setLoadPct] = useState(0);
+  const [bufferPct, setBufferPct] = useState(0);
+
+  const progressTimers = useRef<ReturnType<typeof setInterval>[]>([]);
+  const loadStartMs = useRef<number>(0);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+  const skipIntroTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipIntroDismiss = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swipeStartY = useRef<number | null>(null);
+
+  // Ranked sources (fastest first based on historical speed)
+  const rankedSources = useMemo(() => rankSources(getSourceSpeeds()), [started]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Init: load prefs + data saver
   useEffect(() => {
-    PLAYER_ORIGINS.forEach(preconnect);
+    const ds = getDataSaver();
+    setDataSaverState(ds);
+
+    if (!ds) PLAYER_ORIGINS.forEach(preconnect);
 
     const raw = typeof window !== "undefined" ? localStorage.getItem(PREFS_KEY) : null;
     const p = loadPrefs();
-    // No stored choice + slow link → start on the lightest player.
-    setSourceId(!raw && isSlowNetwork() ? "videasy" : p.sourceId);
-  }, []);
+    setSourceId(!raw && (isSlowNetwork() || ds) ? rankedSources[0].id : p.sourceId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ sourceId }));
-    } catch {}
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ sourceId })); } catch {}
   }, [sourceId]);
 
   const src = useMemo(() => {
@@ -101,11 +130,7 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, poster }: P
 
   const activeSource = SOURCES.find((s) => s.id === sourceId) ?? SOURCES[0];
 
-  // --- Auto-failover -------------------------------------------------------
-  // We can't see inside the iframe, but we can see whether its document ever
-  // loaded. If a source hasn't answered within the budget it's dead or too
-  // slow — move to the next one automatically instead of leaving the user on a
-  // spinner. Cleared the moment onLoad fires.
+  // Auto-failover
   useEffect(() => {
     if (!started || !loading) return;
     const timer = setTimeout(() => {
@@ -118,20 +143,130 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, poster }: P
     return () => clearTimeout(timer);
   }, [started, loading, sourceId, exhausted]);
 
-  // New title / episode → everything gets a fresh chance.
+  // Reset on title/episode change
   useEffect(() => {
     setExhausted([]);
     setAutoSwitched(null);
     setStarted(false);
+    setBarMode(null);
+    setLoadPct(0);
+    setBufferPct(0);
+    setMiniPlayer(false);
+    setShowSkipIntro(false);
   }, [tmdbId, season, episode]);
 
+  // Loading progress animation
+  useEffect(() => {
+    progressTimers.current.forEach(clearInterval);
+    progressTimers.current = [];
+    if (!started || !loading) return;
+
+    setBarMode("loading");
+    setLoadPct(0);
+    setBufferPct(0);
+    loadStartMs.current = Date.now();
+
+    let pct = 0;
+    const stage1 = setInterval(() => {
+      pct = Math.min(35, pct + 2.5);
+      setLoadPct(pct);
+      setBufferPct(Math.min(100, pct + 14));
+      if (pct >= 35) clearInterval(stage1);
+    }, 40);
+    const stage2 = setInterval(() => {
+      if (pct < 35) return;
+      pct = Math.min(78, pct + 0.4);
+      setLoadPct(pct);
+      setBufferPct(Math.min(100, pct + 14));
+      if (pct >= 78) clearInterval(stage2);
+    }, 80);
+
+    progressTimers.current = [stage1, stage2];
+    return () => { progressTimers.current.forEach(clearInterval); };
+  }, [started, sourceId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // On iframe load: snap bar, switch to buffering mode, record speed
+  useEffect(() => {
+    if (!loading && started) {
+      progressTimers.current.forEach(clearInterval);
+
+      // Record how long this source took
+      if (loadStartMs.current > 0) {
+        recordSourceSpeed(sourceId, Date.now() - loadStartMs.current);
+        loadStartMs.current = 0;
+      }
+
+      setLoadPct(100);
+      setBufferPct(100);
+      const t = setTimeout(() => {
+        setBarMode("buffering");
+        setLoadPct(0);
+        setBufferPct(0);
+      }, 500);
+      return () => clearTimeout(t);
+    }
+  }, [loading, started, sourceId]);
+
+  // Skip intro: show 60s after iframe loads, auto-dismiss after 30 more seconds
+  useEffect(() => {
+    if (loading || !started) return;
+    if (skipIntroTimer.current) clearTimeout(skipIntroTimer.current);
+    if (skipIntroDismiss.current) clearTimeout(skipIntroDismiss.current);
+
+    skipIntroTimer.current = setTimeout(() => {
+      setShowSkipIntro(true);
+      skipIntroDismiss.current = setTimeout(() => setShowSkipIntro(false), 30_000);
+    }, 60_000);
+
+    return () => {
+      if (skipIntroTimer.current) clearTimeout(skipIntroTimer.current);
+      if (skipIntroDismiss.current) clearTimeout(skipIntroDismiss.current);
+    };
+  }, [loading, started, sourceId]);
+
+  // Mini player: IntersectionObserver on the player container
+  useEffect(() => {
+    if (!started || !playerContainerRef.current) return;
+    const el = playerContainerRef.current;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting && started && !loading) setMiniPlayer(true);
+        else setMiniPlayer(false);
+      },
+      { threshold: 0.1 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [started, loading]);
+
+  // Retry on network restore
+  useEffect(() => {
+    if (!started) return;
+    const onOnline = () => {
+      if (loading) setNetworkRestored(true);
+    };
+    const onOffline = () => setNetworkRestored(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [started, loading]);
+
+  useEffect(() => {
+    if (networkRestored) {
+      setNetworkRestored(false);
+      setLoading(true);
+    }
+  }, [networkRestored]);
+
+  // Keyboard: Escape exits expanded
   useEffect(() => {
     if (!expanded) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setExpanded(false);
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setExpanded(false); };
     document.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
@@ -139,33 +274,170 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, poster }: P
     };
   }, [expanded]);
 
+  // Swipe up to fullscreen on mobile
+  const onTouchStart = (e: React.TouchEvent) => {
+    swipeStartY.current = e.touches[0].clientY;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (swipeStartY.current === null) return;
+    const dy = swipeStartY.current - e.changedTouches[0].clientY;
+    if (dy > 60) setExpanded(true);   // swipe up → fullscreen
+    if (dy < -60) setExpanded(false); // swipe down → exit
+    swipeStartY.current = null;
+  };
+
   const switchSource = (id: string) => {
     if (id === sourceId) return;
     setLoading(true);
     setAutoSwitched(null);
     setSourceId(id);
-    // A manual pick means the user vouches for it — clear the give-up list so
-    // failover can still rescue them if this one also stalls.
     setExhausted([]);
+    setSheetOpen(false);
   };
 
-  // "Try next source" — what the user reaches for when a source loaded fine but
-  // the video never actually plays (which we can't detect from out here).
   const tryNextSource = () => {
     const next = SOURCES.find((s) => s.id !== sourceId && !exhausted.includes(s.id));
-    if (!next) {
-      setExhausted([]);
-      return;
-    }
+    if (!next) { setExhausted([]); return; }
     setExhausted((prev) => [...prev, sourceId]);
     setLoading(true);
     setAutoSwitched(null);
     setSourceId(next.id);
   };
 
+  const handlePlay = () => {
+    setStarted(true);
+    if (title) {
+      addToHistory({ tmdbId, kind, title, poster: poster ?? null });
+    }
+  };
+
+  const toggleDataSaver = () => {
+    const next = !dataSaver;
+    setDataSaverState(next);
+    setDataSaver(next);
+  };
+
+  const speeds = getSourceSpeeds();
+
+  const speedLabel = (id: string) => {
+    const ms = speeds[id];
+    if (!ms) return null;
+    if (ms < 2000) return "Fast";
+    if (ms < 5000) return "OK";
+    return "Slow";
+  };
+
+  const speedColor = (id: string) => {
+    const ms = speeds[id];
+    if (!ms) return "text-neutral-400";
+    if (ms < 2000) return "text-green-400";
+    if (ms < 5000) return "text-yellow-400";
+    return "text-red-400";
+  };
+
+  const playerInner = (mini = false) => (
+    <>
+      {loading && !mini && (
+        <div className="absolute inset-0 z-10 grid place-items-center bg-neutral-950">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-red-500" />
+            <p className="text-xs font-medium uppercase tracking-widest text-neutral-400">
+              Loading {activeSource.name}…
+            </p>
+            {dataSaver && (
+              <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-400 ring-1 ring-green-500/20">
+                Data Saver ON
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <iframe
+        key={src}
+        src={src}
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+        allowFullScreen
+        referrerPolicy="no-referrer"
+        loading="eager"
+        onLoad={() => setLoading(false)}
+        className="absolute inset-0 h-full w-full"
+      />
+
+      {/* Loading bar */}
+      {!mini && barMode === "loading" && (
+        <div className="absolute bottom-0 left-0 right-0 z-20" style={{ pointerEvents: "none" }}>
+          <div className="relative h-[3px] w-full bg-white/10">
+            <div
+              className="absolute left-0 top-0 h-full bg-white/30 transition-[width] duration-300 ease-out"
+              style={{ width: `${bufferPct}%` }}
+            />
+            <div
+              className="absolute left-0 top-0 h-full bg-red-500 transition-[width] duration-200 ease-out"
+              style={{ width: `${loadPct}%` }}
+            />
+            <div
+              className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500 shadow-lg shadow-red-500/60 transition-[left] duration-200 ease-out"
+              style={{ left: `${loadPct}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between px-2 pb-1 pt-1">
+            <span className="rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+              Buffering…
+            </span>
+            <span className="rounded bg-black/60 px-1.5 py-0.5 text-[10px] tabular-nums text-white/50 backdrop-blur-sm">
+              {Math.round(loadPct)}%
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Persistent background buffer sweep */}
+      {!mini && barMode === "buffering" && (
+        <div className="absolute bottom-0 left-0 right-0 z-20" style={{ pointerEvents: "none" }}>
+          <div className="relative h-[2px] w-full overflow-hidden bg-white/10">
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                height: "100%",
+                width: "40%",
+                background:
+                  "linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.35) 40%,rgba(255,255,255,0.55) 60%,transparent 100%)",
+                animation: "bufferSweep 2.8s cubic-bezier(0.4,0,0.6,1) infinite",
+              }}
+            />
+          </div>
+          <style>{`@keyframes bufferSweep{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}`}</style>
+        </div>
+      )}
+
+      {/* Skip Intro button */}
+      {!mini && showSkipIntro && (
+        <div className="absolute bottom-10 right-4 z-30">
+          <button
+            type="button"
+            onClick={() => setShowSkipIntro(false)}
+            className="flex items-center gap-2 rounded-lg border border-white/30 bg-black/80 px-4 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20"
+          >
+            Skip Intro
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+              <path d="M5 12h14m-6-6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="w-full">
+      {/* Main player */}
       <div
+        ref={playerContainerRef}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
         className={
           expanded
             ? "fixed inset-0 z-[100] bg-black"
@@ -176,9 +448,9 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, poster }: P
         {!started ? (
           <button
             type="button"
-            onMouseEnter={() => preconnect(originOf(activeSource))}
-            onTouchStart={() => preconnect(originOf(activeSource))}
-            onClick={() => setStarted(true)}
+            onMouseEnter={() => !dataSaver && preconnect(originOf(activeSource))}
+            onTouchStart={() => !dataSaver && preconnect(originOf(activeSource))}
+            onClick={handlePlay}
             className="absolute inset-0 z-20 grid h-full w-full place-items-center"
             aria-label="Play"
           >
@@ -197,41 +469,23 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, poster }: P
                   <path d="M8 5v14l11-7z" />
                 </svg>
               </span>
-              <span className="text-sm font-bold tracking-wide text-white">
-                Play
-              </span>
+              <span className="text-sm font-bold tracking-wide text-white">Play</span>
+              {dataSaver && (
+                <span className="rounded-full bg-green-500/20 px-3 py-0.5 text-[10px] font-semibold text-green-400 ring-1 ring-green-500/30">
+                  Data Saver ON
+                </span>
+              )}
             </div>
           </button>
         ) : (
-          <>
-            {loading && (
-              <div className="absolute inset-0 z-10 grid place-items-center bg-neutral-950">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-red-500" />
-                  <p className="text-xs font-medium uppercase tracking-widest text-neutral-400">
-                    Loading {activeSource.name}…
-                  </p>
-                </div>
-              </div>
-            )}
-            <iframe
-              key={src}
-              src={src}
-              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-              allowFullScreen
-              referrerPolicy="no-referrer"
-              loading="eager"
-              onLoad={() => setLoading(false)}
-              className="absolute inset-0 h-full w-full"
-            />
-          </>
+          playerInner()
         )}
 
+        {/* Fullscreen toggle */}
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-label={expanded ? "Exit fullscreen" : "Enter fullscreen"}
-          title={expanded ? "Exit fullscreen (Esc)" : "Fullscreen"}
           className="absolute right-3 top-3 z-30 grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-black/70 text-white backdrop-blur transition hover:border-white/50 hover:bg-black/90"
         >
           {expanded ? (
@@ -246,27 +500,48 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, poster }: P
         </button>
       </div>
 
+      {/* Mini player — fixed bottom-right when main player scrolls out of view */}
+      {miniPlayer && started && !loading && (
+        <div className="fixed bottom-4 right-4 z-[90] overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/10"
+          style={{ width: 320, aspectRatio: "16/9" }}>
+          <div className="relative h-full w-full bg-black">
+            {playerInner(true)}
+          </div>
+          <button
+            type="button"
+            onClick={() => setMiniPlayer(false)}
+            aria-label="Close mini player"
+            className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-black/80 text-white ring-1 ring-white/20 hover:bg-black"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMiniPlayer(false); playerContainerRef.current?.scrollIntoView({ behavior: "smooth" }); }}
+            aria-label="Expand player"
+            className="absolute left-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-black/80 text-white ring-1 ring-white/20 hover:bg-black"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Failover notice */}
       {autoSwitched && (
         <div className="mt-3 flex items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-200">
-          <span>
-            Previous source was too slow — switched to{" "}
-            <strong>{autoSwitched}</strong>.
-          </span>
-          <button
-            type="button"
-            onClick={() => setAutoSwitched(null)}
-            className="ml-auto text-xs text-sky-200/60 hover:text-sky-200"
-          >
-            Dismiss
-          </button>
+          <span>Previous source was too slow — switched to <strong>{autoSwitched}</strong>.</span>
+          <button type="button" onClick={() => setAutoSwitched(null)} className="ml-auto text-xs text-sky-200/60 hover:text-sky-200">Dismiss</button>
         </div>
       )}
 
       {/* Controls */}
       <div className="mt-4 space-y-3 rounded-xl border border-white/5 bg-white/[0.03] p-3">
         {started && (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={tryNextSource}
@@ -274,26 +549,49 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, poster }: P
             >
               Not playing? Try next source
             </button>
+            {/* Mobile: source sheet trigger */}
+            <button
+              type="button"
+              onClick={() => setSheetOpen(true)}
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-neutral-300 transition hover:border-white/20 hover:bg-white/10 hover:text-white sm:hidden"
+            >
+              Change Source
+            </button>
           </div>
         )}
 
-        <div>
-          <div className="mb-2 flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-neutral-400">
-              Source
-            </span>
+        {/* Desktop source picker */}
+        <div className="hidden sm:block">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-neutral-400">Source</span>
+            {/* Data saver toggle */}
+            <button
+              type="button"
+              onClick={toggleDataSaver}
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold transition ring-1 ${
+                dataSaver
+                  ? "bg-green-500/15 text-green-400 ring-green-500/30 hover:bg-green-500/25"
+                  : "bg-white/5 text-neutral-400 ring-white/10 hover:text-white"
+              }`}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" strokeLinecap="round" />
+                <path d="M22 4 12 14.01l-3-3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {dataSaver ? "Data Saver ON" : "Data Saver"}
+            </button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {SOURCES.map((s) => {
+            {rankedSources.map((s) => {
               const active = s.id === sourceId;
+              const label = speedLabel(s.id);
               return (
                 <button
                   key={s.id}
                   type="button"
-                  onMouseEnter={() => preconnect(originOf(s))}
-                  onTouchStart={() => preconnect(originOf(s))}
+                  onMouseEnter={() => !dataSaver && preconnect(originOf(s))}
+                  onTouchStart={() => !dataSaver && preconnect(originOf(s))}
                   onClick={() => switchSource(s.id)}
-                  title={s.name}
                   className={`group flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                     active
                       ? "bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/25"
@@ -301,17 +599,88 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, poster }: P
                   }`}
                 >
                   {s.name}
+                  {label && (
+                    <span className={`text-[9px] font-bold uppercase ${active ? "text-white/70" : speedColor(s.id)}`}>
+                      {label}
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
-            Every player auto-adapts{" "}
-            <strong className="text-neutral-400">quality to your internet speed</strong>,
-            and a stalled source is swapped out automatically.
+            Sources ranked by your connection speed.{" "}
+            <strong className="text-neutral-400">Quality auto-adapts</strong> to your internet.
           </p>
         </div>
+
+        {/* Mobile: only data saver visible inline (source sheet for source pick) */}
+        <div className="flex items-center justify-between sm:hidden">
+          <span className="text-[11px] text-neutral-500">
+            Active: <strong className="text-neutral-300">{activeSource.name}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={toggleDataSaver}
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold transition ring-1 ${
+              dataSaver
+                ? "bg-green-500/15 text-green-400 ring-green-500/30"
+                : "bg-white/5 text-neutral-400 ring-white/10"
+            }`}
+          >
+            {dataSaver ? "Data Saver ON" : "Data Saver"}
+          </button>
+        </div>
       </div>
+
+      {/* Mobile bottom sheet */}
+      {sheetOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm sm:hidden"
+            onClick={() => setSheetOpen(false)}
+          />
+          <div className="fixed bottom-0 left-0 right-0 z-[81] rounded-t-2xl bg-neutral-900 p-5 pb-8 shadow-2xl ring-1 ring-white/10 sm:hidden">
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="text-base font-bold text-white">Choose Source</h3>
+              <button type="button" onClick={() => setSheetOpen(false)} className="text-neutral-400 hover:text-white">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                  <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            <p className="mb-4 text-xs text-neutral-500">Ranked by your speed history</p>
+            <div className="space-y-2">
+              {rankedSources.map((s) => {
+                const active = s.id === sourceId;
+                const label = speedLabel(s.id);
+                const ms = speeds[s.id];
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => switchSource(s.id)}
+                    className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition ${
+                      active
+                        ? "bg-gradient-to-r from-red-500/20 to-orange-500/10 ring-1 ring-red-500/40"
+                        : "bg-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${active ? "bg-red-500" : "bg-neutral-600"}`} />
+                    <span className="flex-1 text-sm font-semibold text-white">{s.name}</span>
+                    {label && (
+                      <span className={`text-[10px] font-bold ${speedColor(s.id)}`}>{label}</span>
+                    )}
+                    {ms && (
+                      <span className="text-[10px] text-neutral-500">{(ms / 1000).toFixed(1)}s</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

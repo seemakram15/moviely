@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { posterUrl, backdropUrl, type MediaItem } from "@/lib/tmdb";
+import WatchlistButton from "./WatchlistButton";
 
 type PreviewPayload = {
   trailerKey: string | null;
@@ -99,6 +100,16 @@ export default function MediaCard({
               ★ {rating}
             </div>
           )}
+          {/* Watchlist heart — visible on hover */}
+          <div className="absolute bottom-2 right-2 opacity-0 transition group-hover:opacity-100">
+            <WatchlistButton
+              tmdbId={item.id}
+              kind={item.media_type}
+              title={item.title}
+              poster={poster ?? null}
+              size="sm"
+            />
+          </div>
         </div>
         <div className="mt-2 px-0.5">
           <h3 className="line-clamp-1 text-sm font-medium text-white">{item.title}</h3>
@@ -149,15 +160,13 @@ export default function MediaCard({
                     <path d="M8 5v14l11-7z" />
                   </svg>
                 </Link>
-                <Link
-                  href={href}
-                  className="grid h-9 w-9 place-items-center rounded-full border border-white/40 text-white transition hover:border-white"
-                  aria-label={`More info on ${item.title}`}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-                  </svg>
-                </Link>
+                <WatchlistButton
+                  tmdbId={item.id}
+                  kind={item.media_type}
+                  title={item.title}
+                  poster={poster ?? null}
+                  size="sm"
+                />
                 {rating && (
                   <span className="ml-auto text-xs font-semibold text-yellow-400">
                     ★ {rating}

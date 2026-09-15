@@ -24,9 +24,11 @@ type Episode = {
 export default function EpisodeSelector({
   tmdbId,
   seasons,
+  title,
 }: {
   tmdbId: number;
   seasons: SeasonSummary[];
+  title?: string;
 }) {
   const playable = seasons.filter((s) => s.season_number > 0);
   const [season, setSeason] = useState<number>(playable[0]?.season_number ?? 1);
@@ -62,7 +64,7 @@ export default function EpisodeSelector({
 
   return (
     <div className="flex flex-col gap-6">
-      <PlayerFrame tmdbId={tmdbId} kind="tv" season={season} episode={episode} />
+      <PlayerFrame tmdbId={tmdbId} kind="tv" season={season} episode={episode} title={title} />
 
       {currentEp && (
         <div className="rounded-xl border border-white/5 bg-white/[0.03] p-4">
