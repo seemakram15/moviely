@@ -107,16 +107,16 @@ export default function DetailHero({
 
       {/* Content grid */}
       <div className="relative z-10 mx-auto flex min-h-[85dvh] max-w-[1600px] items-end px-4 pb-10 pt-24 sm:min-h-[90dvh] sm:px-8 sm:pb-20 sm:pt-32">
-        <div className="grid w-full grid-cols-[110px_1fr] items-end gap-4 sm:grid-cols-[180px_1fr] sm:gap-8 md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr] lg:gap-12">
-          {/* Poster — always visible, scales down on mobile */}
-          <div>
+        <div className="grid w-full grid-cols-1 items-end gap-4 sm:grid-cols-[180px_1fr] sm:gap-8 md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr] lg:gap-12">
+          {/* Poster — hidden on mobile (backdrop is the visual), shown sm+ */}
+          <div className="hidden sm:block">
             {poster && (
-              <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg shadow-2xl shadow-black/70 ring-1 ring-white/10 sm:rounded-2xl">
+              <div className="relative aspect-[2/3] w-full overflow-hidden rounded-2xl shadow-2xl shadow-black/70 ring-1 ring-white/10">
                 <Image
                   src={poster}
                   alt={title}
                   fill
-                  sizes="(max-width: 640px) 110px, (max-width: 1024px) 220px, 280px"
+                  sizes="(max-width: 1024px) 220px, 280px"
                   className="object-cover"
                   priority
                 />
@@ -133,7 +133,7 @@ export default function DetailHero({
                 <span className="text-neutral-400"> · {status}</span>
               )}
             </span>
-            <h1 className="text-2xl font-black leading-[1.05] tracking-tight text-white drop-shadow-2xl sm:text-5xl lg:text-7xl">
+            <h1 className="text-3xl font-black leading-[1.05] tracking-tight text-white drop-shadow-2xl sm:text-5xl lg:text-7xl" style={{ textWrap: "balance" }}>
               {title}
             </h1>
             {tagline && (
@@ -141,7 +141,7 @@ export default function DetailHero({
                 &ldquo;{tagline}&rdquo;
               </p>
             )}
-            <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm sm:mt-5 sm:gap-x-4">
               {rating > 0 && (
                 <span className="flex items-center gap-1 rounded-full bg-yellow-400/10 px-3 py-1 font-semibold text-yellow-400 ring-1 ring-yellow-400/20">
                   ★ {rating.toFixed(1)}
@@ -162,7 +162,7 @@ export default function DetailHero({
               </span>
             </div>
             {genres.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 {genres.map((g) => (
                   <span
                     key={g.id}
@@ -173,59 +173,65 @@ export default function DetailHero({
                 ))}
               </div>
             )}
-            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-neutral-200/95 drop-shadow line-clamp-3 sm:mt-6 sm:text-base sm:line-clamp-4">
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-200/90 drop-shadow line-clamp-4 sm:mt-6 sm:text-base sm:line-clamp-4">
               {overview}
             </p>
-            <div className="mt-5 flex flex-wrap items-center gap-2 sm:mt-8 sm:gap-3">
+
+            {/* Buttons — mobile: Play full-width + second row; desktop: all inline */}
+            <div className="mt-5 flex flex-col gap-2.5 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
               <button
                 type="button"
                 onClick={scrollToPlayer}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-black shadow-xl transition hover:bg-neutral-200 sm:flex-none sm:px-7 sm:py-3 sm:text-base"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3.5 text-base font-bold text-black shadow-xl transition active:scale-[0.98] hover:bg-neutral-200 sm:w-auto sm:rounded-lg sm:px-7 sm:py-3"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M8 5v14l11-7z" />
                 </svg>
                 Play {mediaType === "tv" ? "Episode" : "Movie"}
               </button>
-              {trailerKey && (
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(true)}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20 sm:flex-none sm:px-5 sm:py-3"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <rect x="2" y="5" width="20" height="14" rx="2" />
-                    <path d="M10 9v6l5-3z" fill="currentColor" />
-                  </svg>
-                  Watch Trailer
-                </button>
-              )}
-              <WatchlistButton
-                tmdbId={id}
-                kind={mediaType}
-                title={title}
-                poster={posterPath ? posterUrl(posterPath, "w342") : null}
-              />
-              {trailerKey && showTrailer && (
-                <button
-                  type="button"
-                  onClick={() => setMuted((m) => !m)}
-                  aria-label={muted ? "Unmute background trailer" : "Mute background trailer"}
-                  className="grid h-11 w-11 place-items-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur transition hover:bg-white/20"
-                >
-                  {muted ? (
+
+              {/* On mobile this is a flex row (Trailer + icons); on desktop sm:contents dissolves it into the parent flex */}
+              <div className="flex items-center gap-2 sm:contents">
+                {trailerKey && (
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(true)}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 py-3 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20 sm:flex-none sm:rounded-lg sm:px-5 sm:py-3"
+                  >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                      <path d="M11 5 6 9H2v6h4l5 4V5Z" strokeLinejoin="round" />
-                      <path d="m22 9-6 6M16 9l6 6" strokeLinecap="round" />
+                      <rect x="2" y="5" width="20" height="14" rx="2" />
+                      <path d="M10 9v6l5-3z" fill="currentColor" />
                     </svg>
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                      <path d="M11 5 6 9H2v6h4l5 4V5Z" strokeLinejoin="round" />
-                      <path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" strokeLinecap="round" />
-                    </svg>
-                  )}
-                </button>
-              )}
+                    Watch Trailer
+                  </button>
+                )}
+                <WatchlistButton
+                  tmdbId={id}
+                  kind={mediaType}
+                  title={title}
+                  poster={posterPath ? posterUrl(posterPath, "w342") : null}
+                />
+                {trailerKey && showTrailer && (
+                  <button
+                    type="button"
+                    onClick={() => setMuted((m) => !m)}
+                    aria-label={muted ? "Unmute background trailer" : "Mute background trailer"}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur transition hover:bg-white/20"
+                  >
+                    {muted ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <path d="M11 5 6 9H2v6h4l5 4V5Z" strokeLinejoin="round" />
+                        <path d="m22 9-6 6M16 9l6 6" strokeLinecap="round" />
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <path d="M11 5 6 9H2v6h4l5 4V5Z" strokeLinejoin="round" />
+                        <path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" strokeLinecap="round" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
