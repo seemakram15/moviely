@@ -89,12 +89,16 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
   const [showSkipIntro, setShowSkipIntro] = useState(false);
   const [networkRestored, setNetworkRestored] = useState(false);
 
-  // Loading bar state
-  const [barMode, setBarMode] = useState<null | "loading" | "buffering">(null);
-  const [loadPct, setLoadPct] = useState(0);
-  const [bufferPct, setBufferPct] = useState(0);
+  // Progress bar state
+  const [barMode, setBarMode] = useState<null | "loading" | "playing">(null);
+  const [loadPct, setLoadPct] = useState(0);    // 0-100 during loading phase
+  const [bufferPct, setBufferPct] = useState(0); // 0-100 during loading phase
+  const [playPct, setPlayPct] = useState(0);     // 0-100 real-time playback position
+  const [bufAheadPct, setBufAheadPct] = useState(0); // buffer bar (ahead of playPct)
 
   const progressTimers = useRef<ReturnType<typeof setInterval>[]>([]);
+  const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const playElapsed = useRef(0); // seconds since playback started
   const loadStartMs = useRef<number>(0);
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const skipIntroTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,6 +155,10 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
     setBarMode(null);
     setLoadPct(0);
     setBufferPct(0);
+    setPlayPct(0);
+    setBufAheadPct(0);
+    playElapsed.current = 0;
+    if (playTimerRef.current) { clearInterval(playTimerRef.current); playTimerRef.current = null; }
     setMiniPlayer(false);
     setShowSkipIntro(false);
   }, [tmdbId, season, episode]);
@@ -185,27 +193,45 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
     return () => { progressTimers.current.forEach(clearInterval); };
   }, [started, sourceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // On iframe load: snap bar, switch to buffering mode, record speed
+  // On iframe load: record speed, then start real-time playback progress bar
   useEffect(() => {
     if (!loading && started) {
       progressTimers.current.forEach(clearInterval);
 
-      // Record how long this source took
       if (loadStartMs.current > 0) {
         recordSourceSpeed(sourceId, Date.now() - loadStartMs.current);
         loadStartMs.current = 0;
       }
 
+      // Snap loading bar to 100% briefly, then switch to playback mode
       setLoadPct(100);
       setBufferPct(100);
       const t = setTimeout(() => {
-        setBarMode("buffering");
-        setLoadPct(0);
-        setBufferPct(0);
-      }, 500);
-      return () => clearTimeout(t);
+        setBarMode("playing");
+        playElapsed.current = 0;
+        setPlayPct(0);
+        setBufAheadPct(8); // start grey bar 8% ahead
+
+        // ponytail: assumed duration — can't read iframe; 7200s covers most movies
+        const duration = kind === "tv" ? 2520 : 7200;
+        if (playTimerRef.current) clearInterval(playTimerRef.current);
+        playTimerRef.current = setInterval(() => {
+          playElapsed.current += 1;
+          const p = Math.min(100, (playElapsed.current / duration) * 100);
+          // buffer stays 8-20% ahead, grows slowly to simulate ongoing preload
+          const ahead = 8 + Math.min(12, playElapsed.current * 0.015);
+          const b = Math.min(100, p + ahead);
+          setPlayPct(p);
+          setBufAheadPct(b);
+        }, 1000);
+      }, 400);
+
+      return () => {
+        clearTimeout(t);
+        if (playTimerRef.current) { clearInterval(playTimerRef.current); playTimerRef.current = null; }
+      };
     }
-  }, [loading, started, sourceId]);
+  }, [loading, started, sourceId, kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Skip intro: show 60s after iframe loads, auto-dismiss after 30 more seconds
   useEffect(() => {
@@ -392,24 +418,26 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
         </div>
       )}
 
-      {/* Persistent background buffer sweep */}
-      {!mini && barMode === "buffering" && (
-        <div className="absolute bottom-0 left-0 right-0 z-20" style={{ pointerEvents: "none" }}>
-          <div className="relative h-[2px] w-full overflow-hidden bg-white/10">
+      {/* Real-time playback bar: red = elapsed, grey = buffered ahead */}
+      {!mini && barMode === "playing" && (
+        <div className="absolute bottom-0 left-0 right-0 z-20 group/bar" style={{ pointerEvents: "none" }}>
+          <div className="relative h-[3px] w-full bg-white/10">
+            {/* Grey buffer bar */}
             <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                height: "100%",
-                width: "40%",
-                background:
-                  "linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.35) 40%,rgba(255,255,255,0.55) 60%,transparent 100%)",
-                animation: "bufferSweep 2.8s cubic-bezier(0.4,0,0.6,1) infinite",
-              }}
+              className="absolute left-0 top-0 h-full bg-white/35"
+              style={{ width: `${bufAheadPct}%`, transition: "width 1s linear" }}
+            />
+            {/* Red playback bar */}
+            <div
+              className="absolute left-0 top-0 h-full bg-red-500"
+              style={{ width: `${playPct}%`, transition: "width 1s linear" }}
+            />
+            {/* Scrubber dot */}
+            <div
+              className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500 shadow shadow-red-500/50"
+              style={{ left: `${playPct}%`, transition: "left 1s linear" }}
             />
           </div>
-          <style>{`@keyframes bufferSweep{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}`}</style>
         </div>
       )}
 
