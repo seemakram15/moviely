@@ -134,12 +134,17 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
 
   const activeSource = SOURCES.find((s) => s.id === sourceId) ?? SOURCES[0];
 
-  // Auto-failover
+  // Auto-failover: try next source after timeout; cycle back when all exhausted
   useEffect(() => {
     if (!started || !loading) return;
     const timer = setTimeout(() => {
       const next = SOURCES.find((s) => s.id !== sourceId && !exhausted.includes(s.id));
-      if (!next) return;
+      if (!next) {
+        // All sources tried — reset and start over from first
+        setExhausted([]);
+        setSourceId(SOURCES[0].id);
+        return;
+      }
       setExhausted((prev) => [...prev, sourceId]);
       setAutoSwitched(next.name);
       setSourceId(next.id);
@@ -384,7 +389,7 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
         src={src}
         allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
         allowFullScreen
-        referrerPolicy="no-referrer"
+        referrerPolicy="origin"
         loading="eager"
         onLoad={() => setLoading(false)}
         className="absolute inset-0 h-full w-full"
