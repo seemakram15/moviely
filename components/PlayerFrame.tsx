@@ -20,7 +20,8 @@ type Props = {
 };
 
 const PREFS_KEY = "moviely:playerPrefs";
-const LOAD_BUDGET_MS = 15000;
+const LOAD_BUDGET_MS = 15000; // ms until we give up waiting for iframe HTML to load
+const POST_LOAD_BUDGET_MS = 45000; // ms to wait after iframe loads before auto-switching
 
 type Prefs = { sourceId: string };
 
@@ -79,6 +80,8 @@ function rankSources(speeds: Record<string, number>) {
 export default function PlayerFrame({ tmdbId, kind, season, episode, title, poster }: Props) {
   const [sourceId, setSourceId] = useState<string>(SOURCES[0].id);
   const [loading, setLoading] = useState(true);
+  const [iframeLoaded, setIframeLoaded] = useState(false); // iframe HTML loaded, embed still connecting
+  const [showConnecting, setShowConnecting] = useState(false); // brief banner after iframe loads
   const [expanded, setExpanded] = useState(false);
   const [started, setStarted] = useState(false);
   const [exhausted, setExhausted] = useState<string[]>([]);
@@ -97,6 +100,7 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
   const [bufAheadPct, setBufAheadPct] = useState(0); // buffer bar (ahead of playPct)
 
   const progressTimers = useRef<ReturnType<typeof setInterval>[]>([]);
+  const postLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const playElapsed = useRef(0); // seconds since playback started
   const loadStartMs = useRef<number>(0);
@@ -152,11 +156,46 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
     return () => clearTimeout(timer);
   }, [started, loading, sourceId, exhausted]);
 
+  // Show "connecting" banner for 30s after iframe loads
+  useEffect(() => {
+    if (!iframeLoaded) { setShowConnecting(false); return; }
+    setShowConnecting(true);
+    const t = setTimeout(() => setShowConnecting(false), 30_000);
+    return () => clearTimeout(t);
+  }, [iframeLoaded, sourceId]);
+
+  // Hide connecting banner when video starts playing
+  useEffect(() => {
+    if (barMode === "playing") setShowConnecting(false);
+  }, [barMode]);
+
+  // Post-load failover: if iframe loaded but video never started playing after 45s, try next source
+  useEffect(() => {
+    if (!iframeLoaded || !started) return;
+    if (postLoadTimerRef.current) clearTimeout(postLoadTimerRef.current);
+    postLoadTimerRef.current = setTimeout(() => {
+      // Only switch if still in loading/buffering mode (video hasn't fully started)
+      if (barMode !== "playing") {
+        const next = SOURCES.find((s) => s.id !== sourceId && !exhausted.includes(s.id));
+        if (next) {
+          setExhausted((prev) => [...prev, sourceId]);
+          setAutoSwitched(next.name);
+          setSourceId(next.id);
+          setIframeLoaded(false);
+          setLoading(true);
+        }
+      }
+    }, POST_LOAD_BUDGET_MS);
+    return () => { if (postLoadTimerRef.current) clearTimeout(postLoadTimerRef.current); };
+  }, [iframeLoaded, started, sourceId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Reset on title/episode change
   useEffect(() => {
     setExhausted([]);
     setAutoSwitched(null);
     setStarted(false);
+    setIframeLoaded(false);
+    setLoading(true);
     setBarMode(null);
     setLoadPct(0);
     setBufferPct(0);
@@ -164,6 +203,7 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
     setBufAheadPct(0);
     playElapsed.current = 0;
     if (playTimerRef.current) { clearInterval(playTimerRef.current); playTimerRef.current = null; }
+    if (postLoadTimerRef.current) { clearTimeout(postLoadTimerRef.current); postLoadTimerRef.current = null; }
     setMiniPlayer(false);
     setShowSkipIntro(false);
   }, [tmdbId, season, episode]);
@@ -320,10 +360,12 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
   const switchSource = (id: string) => {
     if (id === sourceId) return;
     setLoading(true);
+    setIframeLoaded(false);
     setAutoSwitched(null);
     setSourceId(id);
     setExhausted([]);
     setSheetOpen(false);
+    if (postLoadTimerRef.current) { clearTimeout(postLoadTimerRef.current); postLoadTimerRef.current = null; }
   };
 
   const tryNextSource = () => {
@@ -331,8 +373,10 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
     if (!next) { setExhausted([]); return; }
     setExhausted((prev) => [...prev, sourceId]);
     setLoading(true);
+    setIframeLoaded(false);
     setAutoSwitched(null);
     setSourceId(next.id);
+    if (postLoadTimerRef.current) { clearTimeout(postLoadTimerRef.current); postLoadTimerRef.current = null; }
   };
 
   const handlePlay = () => {
@@ -373,8 +417,13 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
           <div className="flex flex-col items-center gap-3">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/10 border-t-red-500" />
             <p className="text-xs font-medium uppercase tracking-widest text-neutral-400">
-              Loading {activeSource.name}…
+              Connecting to {activeSource.name}…
             </p>
+            {activeSource.hint && (
+              <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[10px] text-neutral-500">
+                {activeSource.hint}
+              </span>
+            )}
             {dataSaver && (
               <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-400 ring-1 ring-green-500/20">
                 Data Saver ON
@@ -391,9 +440,27 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
         allowFullScreen
         referrerPolicy="origin"
         loading="eager"
-        onLoad={() => setLoading(false)}
+        onLoad={() => { setLoading(false); setIframeLoaded(true); }}
         className="absolute inset-0 h-full w-full"
       />
+
+      {/* Post-load connecting banner — shown after iframe HTML loads but before video stream connects */}
+      {showConnecting && !loading && !mini && (
+        <div className="pointer-events-none absolute bottom-14 left-1/2 z-30 -translate-x-1/2">
+          <div className="flex items-center gap-2.5 rounded-full bg-black/80 px-4 py-2 backdrop-blur-md ring-1 ring-white/10">
+            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-red-500" />
+            <span className="text-[11px] font-medium text-white/80">
+              Connecting to stream… may take 20–30s
+            </span>
+            <button
+              className="pointer-events-auto ml-1 text-[10px] text-red-400 underline underline-offset-2 hover:text-red-300"
+              onClick={() => tryNextSource()}
+            >
+              Try next source
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Loading bar */}
       {!mini && barMode === "loading" && (
@@ -625,6 +692,7 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
                   onMouseEnter={() => !dataSaver && preconnect(originOf(s))}
                   onTouchStart={() => !dataSaver && preconnect(originOf(s))}
                   onClick={() => switchSource(s.id)}
+                  title={s.hint}
                   className={`group flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                     active
                       ? "bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/25"
@@ -642,8 +710,8 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
             })}
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
-            Sources ranked by your connection speed.{" "}
-            <strong className="text-neutral-400">Quality auto-adapts</strong> to your internet.
+            Hover a source to see details. VidCore may take 20-30s to connect.{" "}
+            <strong className="text-neutral-400">For Hindi audio</strong>, try HindiAudio source.
           </p>
         </div>
 
@@ -700,7 +768,10 @@ export default function PlayerFrame({ tmdbId, kind, season, episode, title, post
                     }`}
                   >
                     <span className={`h-2 w-2 rounded-full ${active ? "bg-red-500" : "bg-neutral-600"}`} />
-                    <span className="flex-1 text-sm font-semibold text-white">{s.name}</span>
+                    <span className="flex flex-col flex-1">
+                      <span className="text-sm font-semibold text-white">{s.name}</span>
+                      {s.hint && <span className="text-[10px] text-neutral-500">{s.hint}</span>}
+                    </span>
                     {label && (
                       <span className={`text-[10px] font-bold ${speedColor(s.id)}`}>{label}</span>
                     )}
